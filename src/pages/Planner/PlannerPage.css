@@ -1,0 +1,423 @@
+/* Variables */
+:root {
+    --primary: #4CAF50;
+    --primary-light: rgba(76, 175, 80, 0.1);
+    --accent: #FF9800;
+    --accent-light: rgba(255, 152, 0, 0.1);
+    --text-primary: #1a1a1a;
+    --text-secondary: #666666;
+    --border: #e0e0e0;
+    --border-dashed: rgba(102, 102, 102, 0.2);
+    --background: #ffffff;
+    --background-muted: #f5f5f5;
+}
+
+/* Page principale */
+.planner-page {
+    min-height: calc(100vh - 64px);
+    background: linear-gradient(135deg,
+    var(--background) 0%,
+    var(--primary-light) 50%,
+    var(--accent-light) 100%
+    );
+    padding: 3rem 1rem;
+}
+
+.planner-container {
+    max-width: 1536px;
+    margin: 0 auto;
+}
+
+/* Header */
+.planner-header {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.planner-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    background-color: var(--primary-light);
+    padding: 0.75rem 1.5rem;
+    border-radius: 9999px;
+    margin-bottom: 1.5rem;
+    color: var(--primary);
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+.planner-title {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+
+.planner-subtitle {
+    font-size: 1.125rem;
+    color: var(--text-secondary);
+    max-width: 42rem;
+    margin: 0 auto;
+    line-height: 1.6;
+}
+
+/* Controls */
+.planner-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.controls-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.controls-right {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* Badge */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.375rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.badge-secondary {
+    background-color: var(--background-muted);
+    color: var(--text-primary);
+}
+
+/* Planner Grid */
+.planner-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* Day Card */
+.day-card {
+    background: var(--background);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.day-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.day-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.day-content {
+    padding: 1.5rem;
+}
+
+/* Meals Grid */
+.meals-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+
+.meal-slot {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.meal-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+/* Meal Card (with recipe) */
+.meal-card {
+    position: relative;
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.meal-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.meal-card:hover .btn-remove-meal {
+    opacity: 1;
+}
+
+.meal-image {
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+}
+
+.meal-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.meal-info {
+    padding: 0.75rem;
+}
+
+.meal-title {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+    line-height: 1.3;
+}
+
+.meal-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* Remove Meal Button */
+.btn-remove-meal {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #f44336;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-remove-meal:hover {
+    background: white;
+    transform: scale(1.1);
+}
+
+/* Empty Meal Slot */
+.meal-empty {
+    border: 2px dashed var(--border-dashed);
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.meal-empty:hover {
+    border-color: var(--primary);
+    background-color: rgba(76, 175, 80, 0.02);
+}
+
+.btn-add-meal {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    transition: color 0.2s ease;
+    width: 100%;
+}
+
+.btn-add-meal:hover {
+    color: var(--primary);
+}
+
+.add-text {
+    font-size: 0.75rem;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 4rem 1rem;
+    margin-top: 2rem;
+}
+
+.empty-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 1.5rem;
+    color: var(--text-secondary);
+    opacity: 0.5;
+}
+
+.empty-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.75rem;
+}
+
+.empty-description {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+    line-height: 1.6;
+}
+
+/* Tips Card */
+.tips-card {
+    margin-top: 2rem;
+    background: var(--accent-light);
+    border: 1px solid rgba(255, 152, 0, 0.2);
+    border-radius: 12px;
+}
+
+.tips-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid rgba(255, 152, 0, 0.2);
+}
+
+.tips-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tips-content {
+    padding: 1.5rem;
+}
+
+.tips-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.tips-list li {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 0.95rem;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background-color: var(--primary);
+    color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background-color: #45a049;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+}
+
+.btn-outline {
+    background-color: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+.btn-outline:hover {
+    background-color: var(--background-muted);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Icons */
+.icon-sm {
+    width: 16px;
+    height: 16px;
+}
+
+.icon-md {
+    width: 24px;
+    height: 24px;
+}
+
+.icon-xs {
+    width: 12px;
+    height: 12px;
+}
+
+.text-accent {
+    color: var(--accent);
+}
+
+/* Responsive */
+@media (min-width: 640px) {
+    .planner-controls {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+}
+
+@media (min-width: 768px) {
+    .meals-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .planner-title {
+        font-size: 2.5rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .planner-title {
+        font-size: 2.5rem;
+    }
+}
