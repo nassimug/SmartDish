@@ -30,26 +30,34 @@ export const routes = [
         name: 'Inscription',
         isProtected: false,
     },
-
-    // Routes protégées (nécessitent authentification)
     {
         path: '/ingredients',
         element: IngredientsPage,
         name: 'Mes Ingrédients',
-        isProtected: true,
+        isProtected: false,
     },
     {
         path: '/suggestions',
         element: SuggestionsPage,
         name: 'Suggestions IA',
-        isProtected: true,
+        isProtected: false,
     },
     {
         path: '/recette/:id',
         element: RecipePage,
         name: 'Détail Recette',
-        isProtected: true,
+        isProtected: false,
     },
+
+     // Route 404
+    {
+        path: '*',
+        element: NotFoundPage,
+        name: '404',
+        isProtected: false,
+    },
+
+    // Routes protégées (nécessitent authentification)
     {
         path: '/favoris',
         element: FavoritesPage,
@@ -67,14 +75,6 @@ export const routes = [
         element: AccountPage,
         name: 'Mon Compte',
         isProtected: true,
-    },
-
-    // Route 404
-    {
-        path: '*',
-        element: NotFoundPage,
-        name: '404',
-        isProtected: false,
     },
 ];
 
