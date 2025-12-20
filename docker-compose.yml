@@ -1,0 +1,424 @@
+version: '3.8'
+
+networks:
+  smartdish-network:
+    driver: bridge
+
+volumes:
+  mysql-data:
+  minio-data:
+
+services:
+  # ========================================
+  # MySQL - Base de données relationnelle
+  # ========================================
+  mysql:
+    image: mysql:8.0
+    container_name: smartdish-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_ROOT_HOST: '%'
+    ports:
+      - "3308:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - smartdish-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: --default-authentication-plugin=mysql_native_password
+
+  # ========================================
+  # PhpMyAdmin - Interface MySQL
+  # ========================================
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: smartdish-phpmyadmin
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: ${PMA_USER}
+      PMA_PASSWORD: ${PMA_PASSWORD}
+      UPLOAD_LIMIT: 100M
+    ports:
+      - "8081:80"
+    networks:
+      - smartdish-network
+
+  # ========================================
+  # MinIO - Stockage S3-compatible
+  # ========================================
+  minio:
+    image: minio/minio:latest
+    container_name: smartdish-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9002:9000"
+      - "9003:9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - smartdish-network
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========================================
+  # MinIO Init - Création des buckets
+  # ========================================
+  minio-init:
+    image: minio/mc:latest
+    container_name: smartdish-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    networks:
+      - smartdish-network
+    entrypoint: /bin/sh
+    command: >
+      -c "
+      echo '⏳ Configuration MinIO...';
+      sleep 5;
+      
+      mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      
+      mc mb myminio/artifacts-bucket || true;
+      mc mb myminio/datasets-bucket || true;
+      mc mb myminio/reports-bucket || true;
+      mc mb myminio/backups-bucket || true;
+      mc mb myminio/recettes-bucket || true;
+      mc mb myminio/documents-bucket || true;
+      
+      mc anonymous set download myminio/reports-bucket;
+      mc anonymous set download myminio/recettes-bucket;
+      
+      echo '✅ Buckets MinIO créés';
+      "
+
+  # ========================================
+  # MS-Persistance - Service de persistance
+  # ========================================
+  ms-persistance:
+    image: abdboutchichi/ms-persistance:latest
+    container_name: smartdish-ms-persistance
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      # MySQL Configuration
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "true"
+      
+      # MinIO Configuration
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      
+      # Logging Configuration
+      LOG_LEVEL_JDBC: DEBUG
+      LOG_LEVEL_HIBERNATE_SQL: DEBUG
+      LOG_LEVEL_HIBERNATE_BINDER: TRACE
+      
+      # Server Configuration
+      SERVER_PORT: 8090
+    ports:
+      - "8090:8090"
+    networks:
+      - smartdish-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8090/actuator/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 60s
+
+  # ========================================
+  # MS-Utilisateur - Gestion des utilisateurs
+  # ========================================
+  ms-utilisateur:
+    image: abdboutchichi/ms-utilisateur:latest
+    container_name: smartdish-ms-utilisateur
+    restart: unless-stopped
+    depends_on:
+      ms-persistance:
+        condition: service_healthy
+    environment:
+      # MS-Persistance URL
+      MS_PERSISTANCE_URL: http://ms-persistance:8090
+      PERSISTANCE_SERVICE_URL: http://ms-persistance:8090
+      
+      # JWT Configuration
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION}
+      
+      # Actuator Configuration
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "*"
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+      MANAGEMENT_ENDPOINTS_ENABLED_BY_DEFAULT: "true"
+      
+      # Server Configuration
+      SERVER_PORT: 8092
+    ports:
+      - "8092:8092"
+    networks:
+      - smartdish-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8092/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ========================================
+  # MS-Recette - Gestion des recettes
+  # ========================================
+  ms-recette:
+    image: abdboutchichi/ms-recette:latest
+    container_name: smartdish-ms-recette
+    restart: unless-stopped
+    depends_on:
+      ms-persistance:
+        condition: service_healthy
+    environment:
+      # MS-Persistance URL
+      MS_PERSISTANCE_URL: http://ms-persistance:8090
+      
+      # Server Configuration
+      SERVER_PORT: 8093
+    ports:
+      - "8093:8093"
+    networks:
+      - smartdish-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8093/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ========================================
+  # MS-Feedback - Gestion des feedbacks
+  # ========================================
+  ms-feedback:
+    image: abdboutchichi/ms-feedback:latest
+    container_name: smartdish-ms-feedback
+    restart: unless-stopped
+    depends_on:
+      ms-persistance:
+        condition: service_healthy
+    environment:
+      # MySQL Configuration
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/smartdish_db
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      
+      # MS-Persistance URL
+      PERSISTANCE_SERVICE_URL: http://ms-persistance:8090
+      
+      # Actuator Configuration
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "*"
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+      MANAGEMENT_ENDPOINTS_ENABLED_BY_DEFAULT: "true"
+      
+      # Server Configuration
+      SERVER_PORT: 8091
+    ports:
+      - "8091:8091"
+    networks:
+      - smartdish-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8091/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  # ========================================
+  # MS-Recommandation - Système de recommandation
+  # ========================================
+  ms-recommandation:
+    image: abdboutchichi/ms-recommandation:latest
+    container_name: smartdish-ms-recommandation
+    restart: unless-stopped
+    environment:
+      # Ollama Configuration
+      OLLAMA_BASE_URL: http://ollama:11434
+      
+      # Server Configuration
+      SERVER_PORT: 8095
+    ports:
+      - "8095:8095"
+    networks:
+      - smartdish-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8095/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ========================================
+  # Ollama - Modèle LLM pour recommandations (optionnel)
+  # ========================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: smartdish-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./ollama-data:/root/.ollama
+    networks:
+      - smartdish-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ========================================
+  # Logger - Affiche tous les services disponibles
+  # ========================================
+  access-logger:
+    image: alpine:latest
+    container_name: smartdish-access-logger
+    depends_on:
+      mysql:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      ms-persistance:
+        condition: service_healthy
+      ms-utilisateur:
+        condition: service_healthy
+      ms-recette:
+        condition: service_healthy
+      ms-feedback:
+        condition: service_healthy
+      ms-recommandation:
+        condition: service_healthy
+    networks:
+      - smartdish-network
+    entrypoint: /bin/sh
+    command: >
+      -c "
+      sleep 15;
+      echo '';
+      echo '╔════════════════════════════════════════════════════════════════╗';
+      echo '║                                                                ║';
+      echo '║   🚀 SMARTDISH - ENVIRONNEMENT COMPLET PRÊT !                 ║';
+      echo '║                                                                ║';
+      echo '╚════════════════════════════════════════════════════════════════╝';
+      echo '';
+      echo '📦 MICROSERVICES DISPONIBLES :';
+      echo '';
+      echo '┌────────────────────────────────────────────────────────────────┐';
+      echo '│ 👤 MS-Utilisateur (Gestion des utilisateurs)                  │';
+      echo '│    🔗 URL      : http://localhost:8092                         │';
+      echo '│    🔗 Health   : http://localhost:8092/actuator/health         │';
+      echo '│    📚 Swagger  : http://localhost:8092/swagger-ui.html         │';
+      echo '└────────────────────────────────────────────────────────────────┘';
+      echo '';
+      echo '┌────────────────────────────────────────────────────────────────┐';
+      echo '│ 🍽️  MS-Recette (Gestion des recettes)                         │';
+      echo '│    🔗 URL      : http://localhost:8093                         │';
+      echo '│    🔗 Health   : http://localhost:8093/actuator/health         │';
+      echo '│    📚 Swagger  : http://localhost:8093/swagger-ui.html         │';
+      echo '└────────────────────────────────────────────────────────────────┘';
+      echo '';
+      echo '┌────────────────────────────────────────────────────────────────┐';
+      echo '│ 🗄️  MS-Persistance (Service de persistance)                   │';
+      echo '│    🔗 URL      : http://localhost:8090                         │';
+      echo '│    🔗 Health   : http://localhost:8090/actuator/health         │';
+      echo '│    📚 Swagger  : http://localhost:8090/swagger-ui.html         │';
+      echo '└────────────────────────────────────────────────────────────────┘';
+      echo '';
+      echo '┌────────────────────────────────────────────────────────────────┐';
+      echo '│ 💬 MS-Feedback (Gestion des retours utilisateurs)             │';
+      echo '│    🔗 URL      : http://localhost:8091                         │';
+      echo '│    🔗 Health   : http://localhost:8091/actuator/health         │';
+      echo '│    📚 Swagger  : http://localhost:8091/swagger-ui.html         │';
+      echo '└────────────────────────────────────────────────────────────────┘';
+      echo '';
+      echo '┌────────────────────────────────────────────────────────────────┐';
+      echo '│ 🤖 MS-Recommandation (Système de recommandation IA)           │';
+      echo '│    🔗 URL      : http://localhost:8095                         │';
+      echo '│    🔗 Health   : http://localhost:8095/api/health              │';
+      echo '│    📚 API      : http://localhost:8095/docs                     │';
+      echo '└────────────────────────────────────────────────────────────────┘';
+      echo '';
+      echo '📊 BASES DE DONNÉES & STOCKAGE :';
+      echo '';
+      echo '┌────────────────────────────────────────────────────────────────┐';
+      echo '│ 🗄️  MySQL Database                                            │';
+      echo '│    📍 Host     : localhost:3308                                │';
+      echo '│    👤 User     : root                                          │';
+      echo '│    🔑 Password : (voir fichier .env)                           │';
+      echo '│    💾 Database : smartdish_db                                  │';
+      echo '└────────────────────────────────────────────────────────────────┘';
+      echo '';
+      echo '┌────────────────────────────────────────────────────────────────┐';
+      echo '│ 🌐 PhpMyAdmin (Interface MySQL)                               │';
+      echo '│    🔗 URL      : http://localhost:8081                         │';
+      echo '│    👤 User     : root                                          │';
+      echo '│    🔑 Password : (voir fichier .env)                           │';
+      echo '└────────────────────────────────────────────────────────────────┘';
+      echo '';
+      echo '┌────────────────────────────────────────────────────────────────┐';
+      echo '│ 🪣 MinIO (Stockage S3)                                         │';
+      echo '│    🔗 API      : http://localhost:9002                         │';
+      echo '│    🌐 Console  : http://localhost:9003                         │';
+      echo '│    👤 User     : (voir fichier .env)                           │';
+      echo '│    🔑 Password : (voir fichier .env)                           │';
+      echo '└────────────────────────────────────────────────────────────────┘';
+      echo '';
+      echo '🔧 COMMANDES UTILES :';
+      echo '';
+      echo '  🛑 Arrêter tous les services :';
+      echo '     docker-compose down';
+      echo '';
+      echo '  📋 Voir les logs d un service :';
+      echo '     docker-compose logs -f [service_name]';
+      echo '';
+      echo '  🔄 Redémarrer un service :';
+      echo '     docker-compose restart [service_name]';
+      echo '';
+      echo '  📊 État de tous les services :';
+      echo '     docker-compose ps';
+      echo '';
+      echo '  🔍 Vérifier la santé des services :';
+      echo '     docker-compose ps --filter health=healthy';
+      echo '';
+      echo '════════════════════════════════════════════════════════════════';
+      echo '';
+      echo '✅ Tous les microservices sont démarrés et prêts à être utilisés !';
+      echo '📱 Vous pouvez maintenant démarrer votre frontend';
+      echo '';
+      tail -f /dev/null
+      "
