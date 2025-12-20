@@ -1,244 +1,362 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChefHat, Sparkles, Clock, Star, TrendingUp, Users } from 'lucide-react';
+import { ChefHat, Sparkles, Clock, Star, TrendingUp, Utensils, Heart, Search, BookOpen, Users, Award, Zap } from 'lucide-react';
+import recipesService from '../../services/api/recipe.service';
+import feedbackService from '../../services/api/feedback.service';
+import { RECIPE_PLACEHOLDER_URL } from '../../utils/RecipePlaceholder';
 import './HomePage.css';
 
 export default function HomePage() {
+    const [trendingRecipes, setTrendingRecipes] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        const loadTrendingRecipes = async () => {
+            try {
+                setLoading(true);
+                setError(null);
+
+                const recipes = await recipesService.getPopularRecettes(3);
+
+                const recipesWithDetails = await Promise.all(
+                    recipes.map(async (recipe) => {
+                        try {
+                            let note = recipe.noteMoyenne || 0;
+                            let nombreAvis = recipe.nombreFeedbacks || 0;
+
+                            // Récupérer la note moyenne via le service feedback si pas présente
+                            if (!note || note === 0) {
+                                try {
+                                    const ratingData = await feedbackService.getAverageRatingByRecetteId(recipe.id);
+                                    note = ratingData?.moyenneNote || 0;
+                                    nombreAvis = ratingData?.nombreAvis || 0;
+                                } catch (ratingError) {
+                                    // Pas de note disponible, garder 0
+                                    console.log(`Pas de note disponible pour la recette ${recipe.id}`);
+                                }
+                            }
+
+                            return {
+                                id: recipe.id,
+                                titre: recipe.titre || 'Recette sans titre',
+                                tempsPreparation: recipe.tempsTotal || 30,
+                                note: note,
+                                nombreAvis: nombreAvis,
+                                imageUrl: recipe.imageUrl || RECIPE_PLACEHOLDER_URL,
+                                difficulte: recipe.difficulte || 'FACILE',
+                                kcal: recipe.kcal || 0
+                            };
+                        } catch (err) {
+                            console.error(`Erreur pour la recette ${recipe.id}:`, err);
+                            return {
+                                id: recipe.id,
+                                titre: recipe.titre || 'Recette sans titre',
+                                tempsPreparation: recipe.tempsTotal || 30,
+                                note: recipe.noteMoyenne || 0,
+                                nombreAvis: recipe.nombreFeedbacks || 0,
+                                imageUrl: recipe.imageUrl || RECIPE_PLACEHOLDER_URL,
+                                difficulte: recipe.difficulte || 'FACILE',
+                                kcal: recipe.kcal || 0
+                            };
+                        }
+                    })
+                );
+
+                setTrendingRecipes(recipesWithDetails);
+            } catch (error) {
+                console.error('Erreur lors du chargement:', error);
+                setError(error.message);
+                setTrendingRecipes([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadTrendingRecipes();
+    }, []);
+
     return (
-        <div className="home-page">
-            {/* Hero Section */}
-            <section className="hero-section">
-                <div className="hero-background" />
-                <div className="hero-content">
-                    <div className="hero-text">
-                        <div className="hero-badge">
-                            <Sparkles className="icon-sm" />
-                            <span>Propulsé par l'IA</span>
+        <div className="home-page-new">
+            {/* Hero Section - Design moderne avec gradient animé */}
+            <section className="hero-modern">
+                <div className="hero-gradient-bg"></div>
+                <div className="hero-container">
+                    <div className="hero-content-wrapper">
+                        <div className="hero-badge-modern">
+                            <Sparkles size={18} />
+                            <span>Intelligence Artificielle Culinaire</span>
                         </div>
 
-                        <h1 className="hero-title">
-                            Cuisinez malin avec ce que vous avez
+                        <h1 className="hero-title-modern">
+                            Transformez vos ingrédients en
+                            <span className="gradient-text"> chefs-d'œuvre culinaires</span>
                         </h1>
 
-                        <p className="hero-description">
-                            Transformez vos ingrédients en délicieuses recettes personnalisées. Notre IA vous suggère des plats
-                            adaptés à ce que vous avez dans votre cuisine.
+                        <p className="hero-subtitle-modern">
+                            Notre IA analyse votre frigo et crée des recettes personnalisées en quelques secondes.
+                            Fini le gaspillage, place à la créativité !
                         </p>
 
-                        <div className="hero-actions">
-                            <Link to="/ingredients" className="btn btn-primary btn-lg">
-                                <ChefHat className="icon-sm" />
-                                Commencer maintenant
+                        <div className="hero-cta-group">
+                            <Link to="/ingredients" className="cta-primary">
+                                <Utensils size={20} />
+                                <span>Découvrir mes recettes</span>
                             </Link>
-                            <Link to="/suggestions" className="btn btn-outline btn-lg">
-                                Voir les recettes tendance
+                            <Link to="/suggestions" className="cta-secondary">
+                                <Search size={20} />
+                                <span>Explorer les tendances</span>
                             </Link>
+                        </div>
+
+                        {/* Stats rapides */}
+                        <div className="hero-stats">
+                            <div className="stat-pill">
+                                <Award size={16} />
+                                <span><strong>10k+</strong> recettes créées</span>
+                            </div>
+                            <div className="stat-pill">
+                                <Users size={16} />
+                                <span><strong>5k+</strong> utilisateurs</span>
+                            </div>
+                            <div className="stat-pill">
+                                <Star size={16} />
+                                <span><strong>4.8/5</strong> satisfaction</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* Features Section */}
-            <section className="features-section">
-                <div className="container">
-                    <div className="section-header">
-                        <h2 className="section-title">Comment ça marche ?</h2>
-                        <p className="section-description">
-                            Trois étapes simples pour découvrir vos prochains plats favoris
-                        </p>
-                    </div>
-
-                    <div className="features-grid">
-                        <div className="feature-card">
-                            <div className="feature-icon primary">
-                                <ChefHat className="icon-lg" />
+            {/* Section Avantages - Design en cartes */}
+            <section className="benefits-section">
+                <div className="section-container">
+                    <div className="benefits-grid">
+                        <div className="benefit-card card-green">
+                            <div className="benefit-icon">
+                                <Zap size={28} />
                             </div>
-                            <h3 className="feature-title">1. Ajoutez vos ingrédients</h3>
-                            <p className="feature-description">
-                                Saisissez simplement les ingrédients que vous avez sous la main. Notre interface intuitive vous aide à
-                                les organiser facilement.
-                            </p>
+                            <h3>Instantané</h3>
+                            <p>Suggestions en quelques secondes grâce à notre IA ultra-rapide</p>
                         </div>
 
-                        <div className="feature-card">
-                            <div className="feature-icon accent">
-                                <Sparkles className="icon-lg" />
+                        <div className="benefit-card card-orange">
+                            <div className="benefit-icon">
+                                <Heart size={28} />
                             </div>
-                            <h3 className="feature-title">2. L'IA génère des suggestions</h3>
-                            <p className="feature-description">
-                                Notre intelligence artificielle analyse vos ingrédients et vous propose des recettes personnalisées et
-                                créatives.
-                            </p>
+                            <h3>Personnalisé</h3>
+                            <p>Recettes adaptées à vos goûts, régimes et contraintes alimentaires</p>
                         </div>
 
-                        <div className="feature-card">
-                            <div className="feature-icon secondary">
-                                <Star className="icon-lg" />
+                        <div className="benefit-card card-blue">
+                            <div className="benefit-icon">
+                                <BookOpen size={28} />
                             </div>
-                            <h3 className="feature-title">3. Cuisinez et savourez</h3>
-                            <p className="feature-description">
-                                Suivez les instructions détaillées, découvrez les astuces de chef et régalez-vous avec vos créations
-                                culinaires.
-                            </p>
+                            <h3>Éducatif</h3>
+                            <p>Apprenez de nouvelles techniques et astuces de chef à chaque recette</p>
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* Trending Recipes Preview */}
-            <section className="trending-section">
-                <div className="container">
-                    <div className="trending-header">
+            {/* Section Recettes Tendance - Design moderne */}
+            <section className="trending-modern">
+                <div className="section-container">
+                    <div className="section-header-modern">
                         <div>
-                            <h2 className="section-title">Recettes tendance du moment</h2>
-                            <p className="section-description">
-                                Découvrez les créations les plus populaires de notre communauté
+                            <div className="section-badge">
+                                <TrendingUp size={18} />
+                                <span>Tendances</span>
+                            </div>
+                            <h2 className="section-title-modern">Les recettes du moment</h2>
+                            <p className="section-desc-modern">
+                                Découvrez ce que notre communauté cuisine aujourd'hui
                             </p>
                         </div>
-                        <Link to="/suggestions" className="btn btn-outline hidden-mobile">
-                            <TrendingUp className="icon-sm" />
-                            Voir toutes les recettes
+                        <Link to="/suggestions" className="btn-view-all">
+                            Voir tout
+                            <TrendingUp size={18} />
                         </Link>
                     </div>
 
-                    <div className="recipes-grid">
-                        {[
-                            {
-                                title: "Risotto aux champignons",
-                                time: "25 min",
-                                rating: 4.8,
-                                image: "/risotto-champignons-plat-cuisine.jpg",
-                            },
-                            {
-                                title: "Salade de quinoa colorée",
-                                time: "15 min",
-                                rating: 4.6,
-                                image: "/salade-quinoa-coloree-healthy.jpg",
-                            },
-                            {
-                                title: "Curry de légumes épicé",
-                                time: "30 min",
-                                rating: 4.9,
-                                image: "/curry-legumes-epice-indien.jpg",
-                            },
-                        ].map((recipe, index) => (
-                            <div key={index} className="recipe-card">
-                                <div className="recipe-image">
-                                    <img
-                                        src={recipe.image}
-                                        alt={recipe.title}
-                                        onError={(e) => {
-                                            e.target.src = 'https://via.placeholder.com/400x300?text=Recipe';
-                                        }}
-                                    />
-                                </div>
-                                <div className="recipe-content">
-                                    <h3 className="recipe-title">{recipe.title}</h3>
-                                    <div className="recipe-meta">
-                                        <div className="recipe-time">
-                                            <Clock className="icon-xs" />
-                                            <span>{recipe.time}</span>
-                                        </div>
-                                        <div className="recipe-rating">
-                                            <Star className="icon-xs star-filled" />
-                                            <span>{recipe.rating}</span>
+                    {loading ? (
+                        <div className="loading-state">
+                            <div className="spinner-modern"></div>
+                            <p>Chargement des meilleures recettes...</p>
+                        </div>
+                    ) : error ? (
+                        <div className="error-state">
+                            <p>Une erreur est survenue lors du chargement des recettes</p>
+                        </div>
+                    ) : (
+                        <div className="recipes-grid-modern">
+                            {trendingRecipes.map((recipe) => (
+                                <Link
+                                    key={recipe.id}
+                                    to={`/recette/${recipe.id}`}
+                                    className="recipe-card-modern"
+                                >
+                                    <div className="recipe-image-wrapper">
+                                        <img
+                                            src={recipe.imageUrl}
+                                            alt={recipe.titre}
+                                            onError={(e) => {
+                                                e.target.src = RECIPE_PLACEHOLDER_URL;
+                                            }}
+                                        />
+                                        <div className="recipe-overlay">
+                                            <div className="recipe-badges">
+                                                <span className="badge-difficulty">{recipe.difficulte}</span>
+                                                {recipe.kcal > 0 && (
+                                                    <span className="badge-kcal">{recipe.kcal} kcal</span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
+
+                                    <div className="recipe-info-modern">
+                                        <h3 className="recipe-title-modern">{recipe.titre}</h3>
+
+                                        <div className="recipe-meta-modern">
+                                            <div className="meta-item">
+                                                <Clock size={16} />
+                                                <span>{recipe.tempsPreparation} min</span>
+                                            </div>
+
+                                            <div className="meta-item rating">
+                                                <Star size={16} />
+                                                <span>
+                                                    {recipe.note > 0 ? recipe.note.toFixed(1) : 'N/A'}
+                                                </span>
+                                                {recipe.nombreAvis > 0 && (
+                                                    <span className="avis-count">({recipe.nombreAvis})</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </section>
+
+            {/* Section Comment ça marche - Design timeline */}
+            <section className="how-it-works">
+                <div className="section-container">
+                    <div className="section-header-center">
+                        <h2 className="section-title-modern">Comment ça fonctionne ?</h2>
+                        <p className="section-desc-modern">
+                            Trois étapes simples pour cuisiner comme un chef
+                        </p>
+                    </div>
+
+                    <div className="steps-timeline">
+                        <div className="step-item">
+                            <div className="step-number">1</div>
+                            <div className="step-content">
+                                <div className="step-icon">
+                                    <ChefHat size={32} />
                                 </div>
+                                <h3>Listez vos ingrédients</h3>
+                                <p>
+                                    Ajoutez ce que vous avez dans votre frigo. Notre interface intuitive
+                                    rend cette étape ultra-rapide.
+                                </p>
                             </div>
-                        ))}
-                    </div>
+                        </div>
 
-                    <div className="trending-footer-mobile">
-                        <Link to="/suggestions" className="btn btn-outline">
-                            <TrendingUp className="icon-sm" />
-                            Voir toutes les recettes
-                        </Link>
+                        <div className="step-connector"></div>
+
+                        <div className="step-item">
+                            <div className="step-number">2</div>
+                            <div className="step-content">
+                                <div className="step-icon">
+                                    <Sparkles size={32} />
+                                </div>
+                                <h3>L'IA crée vos recettes</h3>
+                                <p>
+                                    Notre intelligence artificielle génère des recettes personnalisées
+                                    et créatives en quelques secondes.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="step-connector"></div>
+
+                        <div className="step-item">
+                            <div className="step-number">3</div>
+                            <div className="step-content">
+                                <div className="step-icon">
+                                    <Utensils size={32} />
+                                </div>
+                                <h3>Cuisinez et régalez-vous</h3>
+                                <p>
+                                    Suivez les instructions détaillées et découvrez des astuces de chef
+                                    pour chaque recette.
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
 
-            {/* Stats Section */}
-            <section className="stats-section">
-                <div className="container">
-                    <div className="stats-grid">
-                        <div className="stat-item">
-                            <div className="stat-number primary">10k+</div>
-                            <p className="stat-label">Recettes générées</p>
-                        </div>
-                        <div className="stat-item">
-                            <div className="stat-number accent">5k+</div>
-                            <p className="stat-label">Utilisateurs actifs</p>
-                        </div>
-                        <div className="stat-item">
-                            <div className="stat-number secondary">4.8★</div>
-                            <p className="stat-label">Note moyenne</p>
-                        </div>
+            {/* Section CTA Final */}
+            <section className="final-cta">
+                <div className="cta-card">
+                    <div className="cta-icon-bg">
+                        <ChefHat size={64} />
                     </div>
-                </div>
-            </section>
-
-            {/* CTA Section */}
-            <section className="cta-section">
-                <div className="cta-content">
-                    <h2 className="cta-title">Prêt à révolutionner votre cuisine ?</h2>
-                    <p className="cta-description">
-                        Rejoignez des milliers de cuisiniers qui découvrent chaque jour de nouvelles recettes adaptées à leurs
-                        ingrédients.
+                    <h2>Prêt à révolutionner votre cuisine ?</h2>
+                    <p>
+                        Rejoignez des milliers de passionnés qui réinventent leur façon de cuisiner chaque jour.
                     </p>
-                    <Link to="/ingredients" className="btn btn-primary btn-lg">
-                        <Users className="icon-sm" />
-                        Commencer gratuitement
+                    <Link to="/ingredients" className="cta-final-btn">
+                        <Utensils size={20} />
+                        <span>Commencer gratuitement</span>
                     </Link>
                 </div>
             </section>
 
-            {/* Footer */}
-            <footer className="footer">
-                <div className="container">
-                    <div className="footer-grid">
-                        <div className="footer-section">
-                            <div className="footer-brand">
-                                <ChefHat className="icon-md" />
-                                <span>SmartDish</span>
-                            </div>
-                            <p className="footer-description">
-                                L'application qui transforme vos ingrédients en délicieuses recettes grâce à l'intelligence
-                                artificielle.
-                            </p>
+            {/* Footer simplifié */}
+            <footer className="footer-modern">
+                <div className="footer-container">
+                    <div className="footer-brand-section">
+                        <div className="footer-logo">
+                            <ChefHat size={32} />
+                            <span>SmartDish</span>
                         </div>
-
-                        <div className="footer-section">
-                            <h4 className="footer-title">Fonctionnalités</h4>
-                            <ul className="footer-links">
-                                <li><Link to="/ingredients">Mes ingrédients</Link></li>
-                                <li><Link to="/suggestions">Suggestions IA</Link></li>
-                                <li><Link to="/planificateur">Planificateur</Link></li>
-                                <li><Link to="/favoris">Favoris</Link></li>
-                            </ul>
-                        </div>
-
-                        <div className="footer-section">
-                            <h4 className="footer-title">Compte</h4>
-                            <ul className="footer-links">
-                                <li><Link to="/compte">Mon profil</Link></li>
-                                <li><Link to="/historique">Historique</Link></li>
-                                <li><Link to="/parametres">Paramètres</Link></li>
-                            </ul>
-                        </div>
-
-                        <div className="footer-section">
-                            <h4 className="footer-title">Support</h4>
-                            <ul className="footer-links">
-                                <li><Link to="/aide">Centre d'aide</Link></li>
-                                <li><Link to="/contact">Contact</Link></li>
-                                <li><Link to="/a-propos">À propos</Link></li>
-                            </ul>
-                        </div>
+                        <p className="footer-tagline">
+                            L'IA qui transforme vos ingrédients en délices culinaires
+                        </p>
                     </div>
 
-                    <div className="footer-bottom">
-                        <p>&copy; 2025 SmartDish. Tous droits réservés.</p>
+                    <div className="footer-links-grid">
+                        <div className="footer-column">
+                            <h4>Fonctionnalités</h4>
+                            <Link to="/ingredients">Mes ingrédients</Link>
+                            <Link to="/suggestions">Suggestions IA</Link>
+                            <Link to="/favoris">Mes favoris</Link>
+                        </div>
+
+                        <div className="footer-column">
+                            <h4>Compte</h4>
+                            <Link to="/compte">Mon profil</Link>
+                            <Link to="/login">Connexion</Link>
+                            <Link to="/register">Inscription</Link>
+                        </div>
+
+                        <div className="footer-column">
+                            <h4>Support</h4>
+                            <a href="#aide">Centre d'aide</a>
+                            <a href="#contact">Contact</a>
+                            <a href="#apropos">À propos</a>
+                        </div>
                     </div>
+                </div>
+
+                <div className="footer-bottom">
+                    <p>&copy; 2025 SmartDish. Tous droits réservés.</p>
                 </div>
             </footer>
         </div>
