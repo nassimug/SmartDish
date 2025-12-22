@@ -1,8 +1,129 @@
-# Getting Started with Create React App
+# SmartDish
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Application de gestion de recettes intelligente avec recommandations IA.
 
-## Available Scripts
+## 🚀 Démarrage rapide
+
+### Prérequis
+
+- Node.js 16+
+- Docker & Docker Compose
+- Git
+
+### Installation
+
+1. **Cloner le projet**
+```bash
+git clone https://github.com/nassimug/SmartDish.git
+cd SmartDish
+git checkout feat/docker
+```
+
+2. **Configurer l'environnement**
+```bash
+# Copier le fichier d'exemple
+copy .env.example .env
+
+# Éditer .env avec vos credentials Railway MySQL
+```
+
+3. **Configurer MySQL Railway**
+
+Le projet utilise Railway pour la base de données MySQL centralisée.
+
+**Variables d'environnement (.env) :**
+```env
+# MySQL Railway (cloud partagé)
+MYSQL_HOST=ballast.proxy.rlwy.net
+MYSQL_PORT=14497
+MYSQL_DATABASE=railway
+MYSQL_USER=root
+MYSQL_PASSWORD=votre_password_railway
+
+# MinIO (stockage local)
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=minioadmin
+
+# JWT
+JWT_SECRET=smartdish-secret-key-2024-very-secure-and-long-enough-for-hs512
+JWT_EXPIRATION=86400000
+```
+
+**Pour obtenir vos credentials Railway :**
+1. Allez sur https://railway.app/
+2. Créez un projet MySQL
+3. Dans l'onglet "Connect", copiez l'URL publique
+4. Format : `mysql://user:password@host:port/database`
+
+4. **Lancer les microservices**
+```bash
+docker-compose up -d
+```
+
+5. **Lancer le frontend**
+```bash
+npm install
+npm start
+```
+
+L'application sera accessible sur http://localhost:3000
+
+## 📦 Architecture
+
+### Microservices (Docker)
+
+| Service | Port | Description |
+|---------|------|-------------|
+| MS-Persistance | 8090 | Service de persistance |
+| MS-Utilisateur | 8092 | Gestion utilisateurs & JWT |
+| MS-Recette | 8093 | Gestion recettes |
+| MS-Feedback | 8091 | Gestion feedbacks |
+| MS-Recommandation | 8095 | Recommandations IA (Ollama) |
+| MinIO | 9002/9003 | Stockage S3 |
+
+### Base de données
+
+- **MySQL** : Railway Cloud (partagé par l'équipe)
+- **Avantages** : Données centralisées, pas de MySQL local, accessible partout
+
+## 🧪 Tests API
+
+```bash
+# Vérifier la santé des services
+curl http://localhost:8092/actuator/health
+
+# Créer un utilisateur
+curl -X POST http://localhost:8092/api/utilisateurs/register \
+  -H "Content-Type: application/json" \
+  -d '{"nom":"Test","prenom":"User","email":"test@test.com","motDePasse":"Test123!"}'
+```
+
+## 🔧 Commandes utiles
+
+```bash
+# Voir l'état des services
+docker-compose ps
+
+# Voir les logs
+docker-compose logs -f ms-persistance
+
+# Redémarrer un service
+docker-compose restart ms-utilisateur
+
+# Tout arrêter
+docker-compose down
+```
+
+## ⚠️ Règles importantes
+
+- ❌ **Ne JAMAIS commiter le fichier `.env`** (contient des passwords)
+- ✅ Toujours utiliser `ddl-auto: update` (jamais `create` ou `create-drop`)
+- ✅ Communiquer avant de modifier le schéma de base
+- ✅ Partager le même `.env` avec toute l'équipe
+
+## 📱 Frontend React
+
+### Available Scripts
 
 In the project directory, you can run:
 

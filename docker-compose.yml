@@ -5,54 +5,13 @@ networks:
     driver: bridge
 
 volumes:
-  mysql-data:
   minio-data:
 
 services:
   # ========================================
-  # MySQL - Base de données relationnelle
+  # NOTE: MySQL est hébergé sur un serveur distant
+  # Voir docker-compose.mysql-server.yml pour le serveur
   # ========================================
-  mysql:
-    image: mysql:8.0
-    container_name: smartdish-mysql
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_ROOT_HOST: '%'
-    ports:
-      - "3308:3306"
-    volumes:
-      - mysql-data:/var/lib/mysql
-    networks:
-      - smartdish-network
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    command: --default-authentication-plugin=mysql_native_password
-
-  # ========================================
-  # PhpMyAdmin - Interface MySQL
-  # ========================================
-  phpmyadmin:
-    image: phpmyadmin:latest
-    container_name: smartdish-phpmyadmin
-    restart: unless-stopped
-    depends_on:
-      mysql:
-        condition: service_healthy
-    environment:
-      PMA_HOST: mysql
-      PMA_PORT: 3306
-      PMA_USER: ${PMA_USER}
-      PMA_PASSWORD: ${PMA_PASSWORD}
-      UPLOAD_LIMIT: 100M
-    ports:
-      - "8081:80"
-    networks:
-      - smartdish-network
 
   # ========================================
   # MinIO - Stockage S3-compatible
@@ -121,15 +80,13 @@ services:
     container_name: smartdish-ms-persistance
     restart: unless-stopped
     depends_on:
-      mysql:
-        condition: service_healthy
       minio:
         condition: service_healthy
     environment:
-      # MySQL Configuration
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}
+      # MySQL Configuration (serveur distant)
+      SPRING_DATASOURCE_URL: jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DATABASE}
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_JPA_SHOW_SQL: "true"
       
@@ -231,10 +188,10 @@ services:
       ms-persistance:
         condition: service_healthy
     environment:
-      # MySQL Configuration
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/smartdish_db
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: password
+      # MySQL Configuration (serveur distant)
+      SPRING_DATASOURCE_URL: jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DATABASE}
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       
       # MS-Persistance URL
@@ -309,8 +266,6 @@ services:
     image: alpine:latest
     container_name: smartdish-access-logger
     depends_on:
-      mysql:
-        condition: service_healthy
       minio:
         condition: service_healthy
       ms-persistance:
@@ -376,18 +331,11 @@ services:
       echo '📊 BASES DE DONNÉES & STOCKAGE :';
       echo '';
       echo '┌────────────────────────────────────────────────────────────────┐';
-      echo '│ 🗄️  MySQL Database                                            │';
-      echo '│    📍 Host     : localhost:3308                                │';
-      echo '│    👤 User     : root                                          │';
+      echo '│ 🗄️  MySQL Database (Railway Cloud)                            │';
+      echo '│    📍 Host     : ballast.proxy.rlwy.net:14497                  │';
+      echo '│    💾 Database : railway                                       │';
       echo '│    🔑 Password : (voir fichier .env)                           │';
-      echo '│    💾 Database : smartdish_db                                  │';
-      echo '└────────────────────────────────────────────────────────────────┘';
-      echo '';
-      echo '┌────────────────────────────────────────────────────────────────┐';
-      echo '│ 🌐 PhpMyAdmin (Interface MySQL)                               │';
-      echo '│    🔗 URL      : http://localhost:8081                         │';
-      echo '│    👤 User     : root                                          │';
-      echo '│    🔑 Password : (voir fichier .env)                           │';
+      echo '│    🌐 Accès    : Partagé par toute l équipe                   │';
       echo '└────────────────────────────────────────────────────────────────┘';
       echo '';
       echo '┌────────────────────────────────────────────────────────────────┐';
