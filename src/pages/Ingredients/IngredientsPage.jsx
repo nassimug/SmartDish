@@ -203,7 +203,7 @@ export default function IngredientsPage() {
 
                                         <div className="selected-actions">
                                             <Link
-                                                to="/suggestions"
+                                                to={`/ai-recommendations?ingredients=${encodeURIComponent(JSON.stringify(selectedIngredients))}&generate=true`}
                                                 className={`btn btn-primary btn-full btn-lg ${selectedIngredients.length === 0 ? 'disabled' : ''}`}
                                             >
                                                 <Sparkles className="icon-sm" />

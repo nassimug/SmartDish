@@ -1,6 +1,7 @@
 import HomePage from '../pages/Home/HomePage';
 import IngredientsPage from '../pages/Ingredients/IngredientsPage';
 import SuggestionsPage from '../pages/Suggestions/SuggestionsPage';
+import AIRecommendationsPage from '../pages/AIRecommendations/AIRecommendationsPage';
 import RecipePage from '../pages/Recipe/RecipePage';
 import FavoritesPage from '../pages/Favorites/FavoritesPage';
 import {NotFoundPage} from "../pages/NotFound/NotFoundPage";
@@ -40,6 +41,12 @@ export const routes = [
         path: '/suggestions',
         element: SuggestionsPage,
         name: 'Suggestions IA',
+        isProtected: false,
+    },
+    {
+        path: '/ai-recommendations',
+        element: AIRecommendationsPage,
+        name: 'Recommandations IA',
         isProtected: false,
     },
     {

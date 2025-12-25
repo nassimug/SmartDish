@@ -1,6 +1,8 @@
 import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_RECIPE_SERVICE_URL || 'http://localhost:8093/api/recettes';
+const PERSISTENCE_URL = process.env.REACT_APP_PERSISTENCE_SERVICE_URL || 'http://localhost:8090/api/persistance';
+const RECOMMENDATION_URL = process.env.REACT_APP_RECOMMENDATION_SERVICE_URL || 'http://localhost:8095/api';
 
 class RecipesService {
     // Helper pour obtenir le token
@@ -11,15 +13,24 @@ class RecipesService {
 
     // Helper pour gérer les erreurs
     handleError(error) {
-        if (error.response) {
-            const message = error.response.data?.error || error.response.data?.message || 'Une erreur est survenue';
-            throw new Error(message);
-        } else if (error.request) {
-            throw new Error('Impossible de contacter le serveur');
-        } else {
-            throw new Error(error.message);
-        }
-    }
+  if (error.response) {
+    const data = error.response.data;
+
+    const message =
+      data?.error ||
+      data?.message ||
+      (typeof data?.detail === "string" ? data.detail : null) ||
+      (Array.isArray(data?.detail) ? data.detail.map(d => d.msg).join(", ") : null) ||
+      `Erreur HTTP ${error.response.status}`;
+
+    throw new Error(message);
+  } else if (error.request) {
+    throw new Error("Impossible de contacter le serveur");
+  } else {
+    throw new Error(error.message);
+  }
+}
+
 
     /**
      * Créer une nouvelle recette
@@ -333,16 +344,91 @@ class RecipesService {
     }
 
     /**
-     * Supprimer tous les fichiers d'une recette
+     * Récupérer tous les aliments depuis MS-Persistance
      */
-    async deleteAllFichiers(recetteId) {
+    async getAllAliments() {
         try {
-            await axios.delete(`${API_URL}/${recetteId}/fichiers`, {
+            const response = await axios.get(`${PERSISTENCE_URL}/aliments`, {
                 headers: this.getAuthHeader()
             });
+            return response.data;
         } catch (error) {
             this.handleError(error);
         }
+    }
+
+    /**
+     * Générer des recommandations IA basées sur des ingrédients
+     */
+    async generateRecommendations(ingredientNames, topK = 3) {
+        try {
+            // 1. Récupérer tous les aliments pour mapper noms -> IDs
+            const allAliments = await this.getAllAliments();
+
+// 2. Convertir les noms d'ingrédients en IDs avec une recherche flexible
+            const ingredientIds = ingredientNames.map(name => {
+                // Recherche insensible à la casse et au singulier/pluriel
+                const normalizedName = name.toLowerCase().trim();
+                
+                // Essayer d'abord une correspondance exacte (insensible à la casse)
+                let aliment = allAliments.find(a => 
+                    a.nom && a.nom.toLowerCase() === normalizedName
+                );
+                
+                // Si pas trouvé, essayer sans accents et singulier/pluriel
+                if (!aliment) {
+                    const withoutAccents = this.removeAccents(normalizedName);
+                    aliment = allAliments.find(a => 
+                        a.nom && this.removeAccents(a.nom.toLowerCase()) === withoutAccents
+                    );
+                }
+                
+                // Si toujours pas trouvé, essayer de matcher le début du mot
+                if (!aliment) {
+                    const withoutAccents = this.removeAccents(normalizedName);
+                    aliment = allAliments.find(a => 
+                        a.nom && this.removeAccents(a.nom.toLowerCase()).startsWith(withoutAccents) ||
+                        withoutAccents.startsWith(this.removeAccents(a.nom.toLowerCase()))
+                    );
+                }
+                
+                return aliment ? aliment.id : null;
+            }).filter(id => id !== null);
+
+            console.log('Ingrédients sélectionnés:', ingredientNames);
+            console.log('IDs trouvés:', ingredientIds);
+            console.log('Aliments disponibles:', allAliments.map(a => ({id: a.id, nom: a.nom})));
+
+            if (ingredientIds.length === 0) {
+                throw new Error('Aucun ingrédient valide trouvé dans la base de données. Ingrédients disponibles: ' + allAliments.map(a => a.nom).join(', '));
+            }
+
+            // 3. Appeler MS-Recommandation
+            const user = JSON.parse(localStorage.getItem('user'));
+            if (!user || !user.id) {
+                throw new Error('Utilisateur non connecté');
+            }
+
+            const response = await axios.post(`${RECOMMENDATION_URL}/recommend/suggestions`, {
+                user_id: user.id.toString(),
+                ingredients_inclus: ingredientIds,
+                top_k: topK,
+                limit_candidates: 50
+            }, {
+                headers: this.getAuthHeader()
+            });
+
+            return response.data;
+        } catch (error) {
+            this.handleError(error);
+        }
+    }
+
+    /**
+     * Supprimer les accents d'une chaîne
+     */
+    removeAccents(str) {
+        return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     }
 }
 
