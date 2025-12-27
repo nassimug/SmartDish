@@ -1,55 +1,26 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Calendar, Plus, ShoppingCart, Clock, Users, ChefHat, Trash2 } from 'lucide-react';
+import { RECIPE_PLACEHOLDER_URL } from '../../utils/RecipePlaceholder';
 import './PlannerPage.css';
 
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 const MEALS = ["Petit-déjeuner", "Déjeuner", "Dîner"];
 
+// Démarre sans recettes par défaut
 const PLANNED_MEALS = {
-    Lundi: {
-        Déjeuner: {
-            id: 1,
-            title: "Salade de quinoa colorée",
-            cookTime: "15 min",
-            servings: 2,
-            image: "/salade-quinoa-coloree-healthy.jpg",
-        },
-        Dîner: {
-            id: 2,
-            title: "Saumon grillé aux herbes",
-            cookTime: "20 min",
-            servings: 2,
-            image: "/saumon-grill--herbes-fra-ches.jpg",
-        },
-    },
-    Mardi: {
-        Déjeuner: {
-            id: 3,
-            title: "Risotto aux champignons",
-            cookTime: "25 min",
-            servings: 4,
-            image: "/risotto-champignons-plat-cuisine.jpg",
-        },
-    },
+    Lundi: {},
+    Mardi: {},
     Mercredi: {},
     Jeudi: {},
-    Vendredi: {
-        Dîner: {
-            id: 4,
-            title: "Curry de légumes épicé",
-            cookTime: "30 min",
-            servings: 4,
-            image: "/curry-legumes-epice-indien.jpg",
-        },
-    },
+    Vendredi: {},
     Samedi: {},
     Dimanche: {},
 };
 
 export default function PlannerPage() {
     const [plannedMeals, setPlannedMeals] = useState(PLANNED_MEALS);
-    const [selectedWeek, setSelectedWeek] = useState("Cette semaine");
+    const selectedWeek = "Cette semaine";
 
     const removeMeal = (day, meal) => {
         setPlannedMeals((prev) => ({
@@ -135,10 +106,10 @@ export default function PlannerPage() {
                                                     <div className="meal-card">
                                                         <div className="meal-image">
                                                             <img
-                                                                src={plannedMeal.image}
+                                                                src={plannedMeal.image || RECIPE_PLACEHOLDER_URL}
                                                                 alt={plannedMeal.title}
                                                                 onError={(e) => {
-                                                                    e.target.src = 'https://via.placeholder.com/400x300?text=Recipe';
+                                                                    e.target.src = RECIPE_PLACEHOLDER_URL;
                                                                 }}
                                                             />
                                                         </div>

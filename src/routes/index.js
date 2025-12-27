@@ -8,6 +8,8 @@ import RegisterPage from "../pages/Auth/RegisterPage";
 import LoginPage from "../pages/Auth/LoginPage";
 import AccountPage from "../pages/Account/AccountPage";
 import PlannerPage from "../pages/Planner/PlannerPage";
+import CreateRecipePage from '../pages/Recipe/CreateRecipePage';
+import AdminRecipesValidationPage from '../pages/Admin/AdminRecipesValidationPage';
 
 
 export const routes = [
@@ -49,14 +51,6 @@ export const routes = [
         isProtected: false,
     },
 
-     // Route 404
-    {
-        path: '*',
-        element: NotFoundPage,
-        name: '404',
-        isProtected: false,
-    },
-
     // Routes protégées (nécessitent authentification)
     {
         path: '/favoris',
@@ -76,6 +70,24 @@ export const routes = [
         name: 'Mon Compte',
         isProtected: true,
     },
+    {
+        path: '/recette/nouvelle',
+        element: CreateRecipePage,
+        name: 'Créer une recette',
+        isProtected: true,
+    },
+    {
+        path: '/admin/validation-recettes',
+        element: AdminRecipesValidationPage,
+        name: 'Validation Recettes (Admin)',
+        isProtected: true,
+    },
+    {
+        path: '*',
+        element: NotFoundPage,
+        name: '404',
+        isProtected: false,
+    },
 ];
 
 export const navigationRoutes = [
@@ -91,7 +103,7 @@ export const navigationRoutes = [
     },
     {
         path: '/suggestions',
-        name: 'Suggestions',
+        name: 'Recettes',
         icon: 'Sparkles',
     },
     {
