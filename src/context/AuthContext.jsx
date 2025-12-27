@@ -1,35 +1,47 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 
-const AuthContext = createContext(null);
+export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [loading, setLoading] = useState(true);
-    const [user, setUser] = useState(null);
+    // Initialiser l'état de manière synchrone pour éviter le clignotement du header
+    const [isAuthenticated, setIsAuthenticated] = useState(() => {
+        const token = localStorage.getItem('token');
+        const savedUser = localStorage.getItem('user');
+        return !!token && !!savedUser;
+    });
+    const [user, setUser] = useState(() => {
+        try {
+            const savedUser = localStorage.getItem('user');
+            return savedUser ? JSON.parse(savedUser) : null;
+        } catch {
+            return null;
+        }
+    });
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        // Vérifier l'authentification au démarrage
-        const checkAuth = () => {
-            const token = localStorage.getItem('token');
-            const savedUser = localStorage.getItem('user');
-
-            if (token && savedUser) {
-                try {
-                    const userData = JSON.parse(savedUser);
-                    setIsAuthenticated(true);
-                    setUser(userData);
-                } catch (error) {
-                    console.error('Erreur lors de la récupération des données utilisateur:', error);
-                    // Nettoyer le localStorage si les données sont corrompues
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('user');
-                }
+        // Validation légère au démarrage pour corriger d'éventuelles données corrompues
+        const token = localStorage.getItem('token');
+        const savedUser = localStorage.getItem('user');
+        if (token && savedUser) {
+            try {
+                const userData = JSON.parse(savedUser);
+                // Réappliquer pour garantir la cohérence
+                setIsAuthenticated(true);
+                setUser(userData);
+            } catch (error) {
+                console.error('Erreur lors de la récupération des données utilisateur:', error);
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                setIsAuthenticated(false);
+                setUser(null);
             }
-
-            setLoading(false);
-        };
-
-        checkAuth();
+        } else {
+            // État non authentifié cohérent
+            setIsAuthenticated(false);
+            setUser(null);
+        }
+        setLoading(false);
     }, []);
 
     const login = (token, userData) => {

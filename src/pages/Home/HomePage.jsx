@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { Award, BookOpen, ChefHat, Clock, Heart, Search, Sparkles, Star, TrendingUp, Users, Utensils, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChefHat, Sparkles, Clock, Star, TrendingUp, Utensils, Heart, Search, BookOpen, Users, Award, Zap } from 'lucide-react';
-import recipesService from '../../services/api/recipe.service';
 import feedbackService from '../../services/api/feedback.service';
+import recipesService from '../../services/api/recipe.service';
+import { normalizeImageUrl } from '../../utils/imageUrlHelper';
 import { RECIPE_PLACEHOLDER_URL } from '../../utils/RecipePlaceholder';
 import './HomePage.css';
 
@@ -17,10 +18,22 @@ export default function HomePage() {
                 setLoading(true);
                 setError(null);
 
-                const recipes = await recipesService.getPopularRecettes(3);
+                // Récupérer TOUTES les recettes pour éviter les problèmes de filtrage backend
+                const allRecipes = await recipesService.getAllRecettes();
+                // Inclure toutes les recettes VALIDEE, sauf si explicitement actives=false (certaines n'ont pas le flag)
+                const validatedOnly = allRecipes
+                    .filter(r => r.statut === 'VALIDEE' && r.actif !== false)
+                    // Trier d'abord par date récente, puis par popularité
+                    .sort((a, b) => {
+                        const dateA = new Date(a.dateCreation || 0);
+                        const dateB = new Date(b.dateCreation || 0);
+                        if (dateA.getTime() !== dateB.getTime()) return dateB - dateA;
+                        return (b.nombreFeedbacks || 0) - (a.nombreFeedbacks || 0);
+                    })
+                    .slice(0, 6);
 
                 const recipesWithDetails = await Promise.all(
-                    recipes.map(async (recipe) => {
+                    validatedOnly.map(async (recipe) => {
                         try {
                             let note = recipe.noteMoyenne || 0;
                             let nombreAvis = recipe.nombreFeedbacks || 0;
@@ -37,16 +50,40 @@ export default function HomePage() {
                                 }
                             }
 
-                            return {
+                            // Tenter de récupérer une URL d'image (directUrl > presigned > fallback)
+                            let primaryImageUrl = recipe.imageUrl ? normalizeImageUrl(recipe.imageUrl) : null;
+                            console.log('[Home] Base imageUrl from recipe', recipe.id, recipe.imageUrl);
+                            try {
+                                const imgs = await recipesService.getImages(recipe.id);
+                                if (imgs && imgs.length > 0) {
+                                    // Préférence: directUrl (MinIO public) > stream > presigned > fallback
+                                    const best = imgs[0].directUrl || imgs[0].urlStream || imgs[0].urlTelechargement || imgs[0].url;
+                                    if (best) {
+                                        primaryImageUrl = normalizeImageUrl(best);
+                                        console.log('[Home] Using images[0] for recipe', recipe.id, primaryImageUrl);
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn('[Home] getImages failed for recipe', recipe.id, e);
+                            }
+
+                            if (!primaryImageUrl) {
+                                primaryImageUrl = RECIPE_PLACEHOLDER_URL;
+                                console.warn('[Home] Fallback placeholder for recipe', recipe.id);
+                            }
+
+                            const card = {
                                 id: recipe.id,
                                 titre: recipe.titre || 'Recette sans titre',
                                 tempsPreparation: recipe.tempsTotal || 30,
                                 note: note,
                                 nombreAvis: nombreAvis,
-                                imageUrl: recipe.imageUrl || RECIPE_PLACEHOLDER_URL,
+                                imageUrl: primaryImageUrl || RECIPE_PLACEHOLDER_URL,
                                 difficulte: recipe.difficulte || 'FACILE',
                                 kcal: recipe.kcal || 0
                             };
+                            console.log('[Home] Card built', card);
+                            return card;
                         } catch (err) {
                             console.error(`Erreur pour la recette ${recipe.id}:`, err);
                             return {
@@ -55,7 +92,7 @@ export default function HomePage() {
                                 tempsPreparation: recipe.tempsTotal || 30,
                                 note: recipe.noteMoyenne || 0,
                                 nombreAvis: recipe.nombreFeedbacks || 0,
-                                imageUrl: recipe.imageUrl || RECIPE_PLACEHOLDER_URL,
+                                imageUrl: (recipe.imageUrl && normalizeImageUrl(recipe.imageUrl)) || RECIPE_PLACEHOLDER_URL,
                                 difficulte: recipe.difficulte || 'FACILE',
                                 kcal: recipe.kcal || 0
                             };
@@ -198,9 +235,11 @@ export default function HomePage() {
                                 >
                                     <div className="recipe-image-wrapper">
                                         <img
-                                            src={recipe.imageUrl}
+                                            src={recipe.imageUrl || RECIPE_PLACEHOLDER_URL}
                                             alt={recipe.titre}
+                                            loading="lazy"
                                             onError={(e) => {
+                                                console.warn('❌ Erreur chargement image:', recipe.imageUrl);
                                                 e.target.src = RECIPE_PLACEHOLDER_URL;
                                             }}
                                         />

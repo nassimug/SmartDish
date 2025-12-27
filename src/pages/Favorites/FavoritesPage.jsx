@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Clock, Star, Users, Heart, Search, Filter, Trash2, ChefHat } from 'lucide-react';
+import { RECIPE_PLACEHOLDER_URL } from '../../utils/RecipePlaceholder';
 import './FavoritesPage.css';
 
 const FAVORITE_RECIPES = [
@@ -101,11 +102,11 @@ export default function FavoritesPage() {
                             <div key={recipe.id} className="recipe-card">
                                 <div className="recipe-image-wrapper">
                                     <img
-                                        src={recipe.image}
+                                        src={recipe.image || RECIPE_PLACEHOLDER_URL}
                                         alt={recipe.title}
                                         className="recipe-image"
                                         onError={(e) => {
-                                            e.target.src = 'https://via.placeholder.com/400x300?text=Recipe';
+                                            e.target.src = RECIPE_PLACEHOLDER_URL;
                                         }}
                                     />
 
