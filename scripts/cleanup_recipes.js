@@ -13,6 +13,7 @@ const PERSIST_URL = process.env.PERSIST_URL || 'http://localhost:8090/api/persis
 const RECETTE_URL = process.env.RECETTE_URL || 'http://localhost:8093/api/recettes';
 const APPLY = process.argv.includes('--apply');
 const INCLUDE_VALIDATED = process.argv.includes('--include-validated');
+const DELETE_ALL = process.argv.includes('--delete-all');
 const CREATED_BEFORE = process.argv.find(a => a.startsWith('--created-before='))?.split('=')[1];
 const TOKEN = process.env.JWT_TOKEN || '';
 
@@ -55,7 +56,7 @@ async function main() {
     console.error('Unexpected response, expected array. Got:', typeof data);
     process.exit(1);
   }
-  const candidates = data.filter(meetsCleanupCriteria);
+  const candidates = DELETE_ALL ? data : data.filter(meetsCleanupCriteria);
   console.log(`Total recipes: ${data.length}`);
   console.log(`Candidates for deletion: ${candidates.length}`);
   console.log('Sample list (up to 20):');
@@ -66,6 +67,9 @@ async function main() {
   if (!APPLY) {
     console.log('\nDry-run complete. Re-run with --apply to delete candidates.');
     console.log('Env: set JWT_TOKEN to an admin token if deletion requires auth.');
+    if (DELETE_ALL) {
+      console.warn('\n[Warning] --delete-all selected: this will attempt to delete ALL recipes. Ensure you have backups.');
+    }
     return;
   }
 
