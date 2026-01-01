@@ -12,12 +12,15 @@ class FeedbackService {
     // Helper pour gérer les erreurs
     handleError(error) {
         if (error.response) {
+            // Erreur du serveur avec message personnalisé
             const message = error.response.data?.error || error.response.data?.message || 'Une erreur est survenue';
             throw new Error(message);
         } else if (error.request) {
+            // Erreur de requête (pas de réponse du serveur)
             throw new Error('Impossible de contacter le serveur');
         } else {
-            throw new Error(error.message);
+            // Autre erreur
+            throw new Error(error.message || 'Une erreur inconnue est survenue');
         }
     }
 

@@ -290,6 +290,9 @@
     text-decoration: none;
     font-weight: 500;
     transition: color 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .auth-link:hover {
@@ -317,16 +320,38 @@
 /* Message de succès */
 .success-message {
     text-align: center;
-    padding: 3rem 1rem;
+    padding: 2rem 1rem;
+}
+
+.success-icon-wrapper {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.5rem;
 }
 
 .success-icon {
     color: var(--success);
-    margin-bottom: 1.5rem;
+    width: 64px;
+    height: 64px;
+    animation: successPulse 1s ease-in-out;
+}
+
+@keyframes successPulse {
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 .success-message h2 {
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     font-weight: 700;
     color: var(--text-primary);
     margin-bottom: 1rem;
@@ -334,9 +359,182 @@
 
 .success-message p {
     color: var(--text-secondary);
-    font-size: 1rem;
+    font-size: 0.95rem;
     line-height: 1.6;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.success-message p strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.text-muted {
+    font-size: 0.85rem;
+    color: #999;
+}
+
+.success-actions {
+    margin-top: 2rem;
+    display: flex;
+    justify-content: center;
+}
+
+.redirect-message {
+    margin-top: 1.5rem;
+    font-size: 0.85rem;
+    color: #999;
+    font-style: italic;
+}
+
+/* Critères de mot de passe */
+.password-requirements {
+    background-color: var(--background-light);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-top: -0.5rem;
+}
+
+.requirements-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 0.75rem 0;
+}
+
+.requirements-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.requirements-list li {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    padding-left: 1.5rem;
+    position: relative;
+}
+
+.requirements-list li::before {
+    content: '○';
+    position: absolute;
+    left: 0;
+    color: var(--border);
+    font-weight: bold;
+}
+
+.requirements-list li.requirement-met {
+    color: var(--success);
+}
+
+.requirements-list li.requirement-met::before {
+    content: '✓';
+    color: var(--success);
+}
+
+/* Erreur d'authentification */
+.auth-error {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    background-color: #fee;
+    color: var(--error);
+    border: 1px solid #fcc;
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+
+.auth-error svg {
+    flex-shrink: 0;
+}
+
+/* Switch entre connexion/inscription */
+.auth-switch {
+    text-align: center;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.auth-switch-link {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+    margin-left: 0.5rem;
+    transition: color 0.2s ease;
+}
+
+.auth-switch-link:hover {
+    color: var(--primary-hover);
+    text-decoration: underline;
+}
+
+/* Bouton block */
+.btn-block {
+    width: 100%;
+}
+
+/* Animations supplémentaires */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.auth-container {
+    animation: fadeIn 0.4s ease-out;
+}
+
+.auth-form > * {
+    animation: fadeIn 0.5s ease-out backwards;
+}
+
+.auth-form > *:nth-child(1) { animation-delay: 0.05s; }
+.auth-form > *:nth-child(2) { animation-delay: 0.1s; }
+.auth-form > *:nth-child(3) { animation-delay: 0.15s; }
+.auth-form > *:nth-child(4) { animation-delay: 0.2s; }
+.auth-form > *:nth-child(5) { animation-delay: 0.25s; }
+.auth-form > *:nth-child(6) { animation-delay: 0.3s; }
+
+/* Amélioration visuelle des boutons */
+.btn {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+.btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Focus visible pour l'accessibilité */
+.btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.auth-link:focus-visible,
+.forgot-password:focus-visible,
+.auth-switch-link:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: 2px;
 }
 
 /* Responsive */
@@ -349,8 +547,9 @@
         padding: 2rem 1.5rem;
     }
 
-    .auth-title {
-        font-size: 1.75rem;
+    .auth-title,
+    .auth-header h1 {
+        font-size: 1.5rem;
     }
 
     .auth-page .form-input {
@@ -361,5 +560,22 @@
     }
     .auth-page .password-toggle {
         right: 0.85rem;
+    }
+
+    .success-message {
+        padding: 1.5rem 0.5rem;
+    }
+
+    .success-icon-wrapper .success-icon {
+        width: 48px;
+        height: 48px;
+    }
+
+    .success-message h2 {
+        font-size: 1.25rem;
+    }
+
+    .password-requirements {
+        padding: 0.875rem 1rem;
     }
 }

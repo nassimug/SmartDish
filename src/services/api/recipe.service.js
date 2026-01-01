@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { normalizeImageUrl, normalizeRecipeImageUrl, normalizeRecipesImageUrls } from '../../utils/imageUrlHelper';
+import feedbackService from './feedback.service';
 
 const API_URL = process.env.REACT_APP_RECIPE_SERVICE_URL || 'http://localhost:8093/api/recettes';
 const PERSISTANCE_API_URL = 'http://localhost:8090/api/persistance/recettes';
@@ -657,6 +658,68 @@ class RecipesService {
         } catch (error) {
             console.error(`❌ [RecipeService] Erreur récupération recettes utilisateur:`, error);
             this.handleError(error);
+        }
+    }
+
+    /**
+     * Enrichir une recette avec sa moyenne de feedbacks
+     * @param {Object} recipe - Recette à enrichir
+     * @returns {Object} Recette enrichie avec note et nombreAvis
+     */
+    async enrichWithFeedbacks(recipe) {
+        if (!recipe || !recipe.id) return recipe;
+        
+        try {
+            const feedbacks = await feedbackService.getFeedbacksByRecetteId(recipe.id);
+            
+            if (feedbacks && feedbacks.length > 0) {
+                const total = feedbacks.reduce((sum, fb) => sum + (fb.evaluation || 0), 0);
+                const moyenne = total / feedbacks.length;
+                
+                return {
+                    ...recipe,
+                    note: moyenne,
+                    rating: moyenne,
+                    nombreAvis: feedbacks.length,
+                    reviews: feedbacks.length
+                };
+            }
+            
+            return {
+                ...recipe,
+                note: 0,
+                rating: 0,
+                nombreAvis: 0,
+                reviews: 0
+            };
+        } catch (error) {
+            console.warn(`Impossible de charger les feedbacks pour la recette ${recipe.id}:`, error);
+            return {
+                ...recipe,
+                note: 0,
+                rating: 0,
+                nombreAvis: 0,
+                reviews: 0
+            };
+        }
+    }
+
+    /**
+     * Enrichir plusieurs recettes avec leurs moyennes de feedbacks
+     * @param {Array} recipes - Liste de recettes à enrichir
+     * @returns {Array} Recettes enrichies
+     */
+    async enrichManyWithFeedbacks(recipes) {
+        if (!recipes || recipes.length === 0) return recipes;
+        
+        try {
+            const enrichedRecipes = await Promise.all(
+                recipes.map(recipe => this.enrichWithFeedbacks(recipe))
+            );
+            return enrichedRecipes;
+        } catch (error) {
+            console.error('Erreur lors de l\'enrichissement des recettes:', error);
+            return recipes;
         }
     }
 }

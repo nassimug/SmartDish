@@ -437,6 +437,21 @@
     color: #f44336;
 }
 
+.activity-icon.success {
+    background-color: rgba(76, 175, 80, 0.1);
+    color: #4CAF50;
+}
+
+.activity-icon.star {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #FFC107;
+}
+
+.activity-icon.info {
+    background-color: rgba(33, 150, 243, 0.1);
+    color: #2196F3;
+}
+
 .activity-icon .icon {
     width: 20px;
     height: 20px;
@@ -610,8 +625,8 @@
    CTA Créer une Recette
    ======================================== */
 .create-recipe-cta {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border: none;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border: none !important;
     position: relative;
     overflow: hidden;
     animation: slideInUp 0.5s ease-out;
@@ -679,7 +694,7 @@
 .cta-icon .icon-md {
     width: 40px;
     height: 40px;
-    color: white;
+    color: white !important;
 }
 
 @keyframes bounce {
@@ -700,33 +715,37 @@
 .cta-title {
     font-size: 1.5rem;
     font-weight: 700;
-    color: white;
+    color: white !important;
     margin: 0;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .cta-desc {
     font-size: 1rem;
-    color: rgba(255, 255, 255, 0.9);
+    color: rgba(255, 255, 255, 0.9) !important;
     margin: 0;
     line-height: 1.5;
 }
 
-.cta-content .btn {
-    background: white;
-    color: #667eea;
-    border: none;
-    padding: 1rem 2rem;
-    font-size: 1.05rem;
-    font-weight: 600;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
-    transition: all 0.3s ease;
+.cta-btn {
+    background: white !important;
+    color: #667eea !important;
+    border: none !important;
+    padding: 1rem 2rem !important;
+    font-size: 1.05rem !important;
+    font-weight: 600 !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15) !important;
+    transition: all 0.3s ease !important;
+    border-radius: 12px !important;
+    text-decoration: none !important;
+    display: inline-block !important;
+    cursor: pointer;
 }
 
-.cta-content .btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
-    background: #f8f9fa;
+.cta-btn:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
 }
 
 .cta-content .btn .icon-sm {

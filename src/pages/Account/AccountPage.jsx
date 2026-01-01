@@ -16,13 +16,15 @@ import {
     Star,
     Trophy,
     User,
-    X
+    X,
+    Zap
 } from 'lucide-react';
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { RECIPE_PLACEHOLDER_URL } from '../../utils/RecipePlaceholder';
+import activityService from '../../services/api/activity.service';
 import authService from '../../services/api/auth.service';
+import { RECIPE_PLACEHOLDER_URL } from '../../utils/RecipePlaceholder';
 // Notifications gérées côté backend (pas d'appel direct depuis le frontend)
 import recipesService from '../../services/api/recipe.service';
 import { normalizeImageUrl } from '../../utils/imageUrlHelper';
@@ -53,6 +55,8 @@ export default function AccountPage() {
     const [rejectRecipeId, setRejectRecipeId] = useState(null);
     const [validateRecipeId, setValidateRecipeId] = useState(null);
     const [rejectMotif, setRejectMotif] = useState('');
+    const [recentActivity, setRecentActivity] = useState([]);
+    const [activityLoading, setActivityLoading] = useState(false);
     const [formData, setFormData] = useState({
         nom: '',
         prenom: '',
@@ -78,12 +82,30 @@ export default function AccountPage() {
         cookingTime: "30-45 min",
     };
 
-    const recentActivity = [
-        { type: "cooked", recipe: "Risotto aux champignons", date: "Il y a 2 jours", rating: 5 },
-        { type: "favorited", recipe: "Salade de quinoa colorée", date: "Il y a 3 jours" },
-        { type: "cooked", recipe: "Curry de légumes épicé", date: "Il y a 1 semaine", rating: 4 },
-        { type: "favorited", recipe: "Saumon grillé aux herbes", date: "Il y a 1 semaine" },
-    ];
+    // Charger les activités récentes au montage du composant
+    useEffect(() => {
+        if (user?.id) {
+            loadRecentActivities();
+        }
+    }, [user?.id]);
+
+    const loadRecentActivities = async () => {
+        if (!user?.id) return;
+
+        try {
+            setActivityLoading(true);
+            const activities = await activityService.getRecentActivites(user.id);
+            
+            // Formater les activités pour l'affichage
+            const formattedActivities = activities.map(activityService.formatActivityForDisplay);
+            setRecentActivity(formattedActivities);
+        } catch (error) {
+            console.error('Erreur lors du chargement des activités:', error);
+            // En cas d'erreur, garder les données fictives
+        } finally {
+            setActivityLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (user) {
@@ -236,13 +258,17 @@ export default function AccountPage() {
     const handleSave = async () => {
         setLoading(true);
         try {
+            console.log('Données à envoyer:', formData);
             // Appel API pour mettre à jour l'utilisateur
             const updatedUser = await authService.updateUser(user.id, formData);
+            console.log('Utilisateur mis à jour:', updatedUser);
             updateUser(updatedUser);
             setIsEditing(false);
+            alert('Profil mis à jour avec succès !');
         } catch (error) {
             console.error('Erreur lors de la mise à jour:', error);
-            alert('Erreur lors de la mise à jour du profil');
+            const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de la mise à jour du profil';
+            alert('Erreur: ' + errorMessage);
         } finally {
             setLoading(false);
         }
@@ -630,7 +656,7 @@ export default function AccountPage() {
                                                 <h3 className="cta-title">Proposer une recette</h3>
                                                 <p className="cta-desc">Partagez votre recette avec la communauté ! Elle sera validée par l'équipe admin avant publication.</p>
                                             </div>
-                                            <Link to="/recette/nouvelle" className="btn">
+                                            <Link to="/recette/nouvelle" className="cta-btn">
                                                 Créer ma recette
                                             </Link>
                                         </div>
@@ -725,36 +751,74 @@ export default function AccountPage() {
                         <div className="tab-content">
                             <div className="card">
                                 <div className="card-header">
-                                    <h3 className="card-title">Activité récente</h3>
+                                    <h3 className="card-title">
+                                        <Zap className="icon-sm" style={{ marginRight: '0.5rem' }} />
+                                        Activité récente
+                                    </h3>
                                 </div>
                                 <div className="card-content">
-                                    <div className="activity-list">
-                                        {recentActivity.map((activity, index) => (
-                                            <div key={index} className="activity-item">
-                                                <div className={`activity-icon ${activity.type === 'cooked' ? 'primary' : 'favorite'}`}>
-                                                    {activity.type === 'cooked' ? (
-                                                        <ChefHat className="icon" />
-                                                    ) : (
-                                                        <Heart className="icon" />
-                                                    )}
-                                                </div>
+                                    {activityLoading ? (
+                                        <div className="loading-state">
+                                            <div className="loading-spinner"></div>
+                                            <p>Chargement...</p>
+                                        </div>
+                                    ) : recentActivity.length === 0 ? (
+                                        <div className="empty-state">
+                                            <Zap className="empty-icon" />
+                                            <p className="empty-title">Aucune activité récente</p>
+                                            <p className="empty-desc">Vos activités apparaîtront ici</p>
+                                        </div>
+                                    ) : (
+                                        <div className="activity-list">
+                                            {recentActivity.map((activity, index) => {
+                                                // Déterminer l'icône et le type selon typeActivite
+                                                let icon = <Zap className="icon" />;
+                                                let activityClass = 'primary';
+                                                let actionText = activity.typeLabel || 'Activité';
 
-                                                <div className="activity-content">
-                                                    <div className="activity-text">
-                                                        {activity.type === 'cooked' ? 'A cuisiné' : 'A ajouté aux favoris'} "{activity.recipe}"
-                                                    </div>
-                                                    <div className="activity-date">{activity.date}</div>
-                                                </div>
+                                                if (activity.typeActivite === 'RECIPE_COOKED') {
+                                                    icon = <ChefHat className="icon" />;
+                                                    activityClass = 'primary';
+                                                } else if (activity.typeActivite === 'RECIPE_FAVORITED') {
+                                                    icon = <Heart className="icon" />;
+                                                    activityClass = 'favorite';
+                                                } else if (activity.typeActivite === 'RECIPE_CREATED') {
+                                                    icon = <Sparkles className="icon" />;
+                                                    activityClass = 'success';
+                                                } else if (activity.typeActivite === 'FEEDBACK_CREATED') {
+                                                    icon = <Star className="icon" />;
+                                                    activityClass = 'star';
+                                                } else if (activity.typeActivite === 'PLANNER_UPDATED') {
+                                                    icon = <Clock className="icon" />;
+                                                    activityClass = 'info';
+                                                }
 
-                                                {activity.rating && (
-                                                    <div className="activity-rating">
-                                                        <Star className="icon-xs star-filled" />
-                                                        <span>{activity.rating}</span>
+                                                return (
+                                                    <div key={activity.id || index} className="activity-item">
+                                                        <div className={`activity-icon ${activityClass}`}>
+                                                            {icon}
+                                                        </div>
+
+                                                        <div className="activity-content">
+                                                            <div className="activity-text">
+                                                                {actionText}
+                                                                {activity.recetteTitre && ` : "${activity.recetteTitre}"`}
+                                                                {activity.details && ` - ${activity.details}`}
+                                                            </div>
+                                                            <div className="activity-date">{activity.formattedDate}</div>
+                                                        </div>
+
+                                                        {activity.note && (
+                                                            <div className="activity-rating">
+                                                                <Star className="icon-xs star-filled" />
+                                                                <span>{activity.note}/5</span>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

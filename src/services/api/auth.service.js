@@ -109,6 +109,45 @@ class AuthService {
     }
 
     /**
+     * Demander la réinitialisation du mot de passe
+     */
+    async forgotPassword(email) {
+        try {
+            const response = await axios.post(`${API_URL}/forgot-password`, { email });
+            return response.data;
+        } catch (error) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Réinitialiser le mot de passe avec le token
+     */
+    async resetPassword(token, newPassword) {
+        try {
+            const response = await axios.post(`${API_URL}/reset-password`, {
+                token,
+                newPassword
+            });
+            return response.data;
+        } catch (error) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Vérifier la validité du token de réinitialisation
+     */
+    async verifyResetToken(token) {
+        try {
+            const response = await axios.get(`${API_URL}/verify-reset-token/${token}`);
+            return response.data;
+        } catch (error) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
      * Gérer les erreurs de l'API
      */
     handleError(error) {

@@ -1,15 +1,17 @@
+import AccountPage from "../pages/Account/AccountPage";
+import AdminRecipesValidationPage from '../pages/Admin/AdminRecipesValidationPage';
+import ForgotPasswordPage from "../pages/Auth/ForgotPasswordPage";
+import LoginPage from "../pages/Auth/LoginPage";
+import RegisterPage from "../pages/Auth/RegisterPage";
+import ResetPasswordPage from "../pages/Auth/ResetPasswordPage";
+import FavoritesPage from '../pages/Favorites/FavoritesPage';
 import HomePage from '../pages/Home/HomePage';
 import IngredientsPage from '../pages/Ingredients/IngredientsPage';
-import SuggestionsPage from '../pages/Suggestions/SuggestionsPage';
-import RecipePage from '../pages/Recipe/RecipePage';
-import FavoritesPage from '../pages/Favorites/FavoritesPage';
-import {NotFoundPage} from "../pages/NotFound/NotFoundPage";
-import RegisterPage from "../pages/Auth/RegisterPage";
-import LoginPage from "../pages/Auth/LoginPage";
-import AccountPage from "../pages/Account/AccountPage";
+import { NotFoundPage } from "../pages/NotFound/NotFoundPage";
 import PlannerPage from "../pages/Planner/PlannerPage";
 import CreateRecipePage from '../pages/Recipe/CreateRecipePage';
-import AdminRecipesValidationPage from '../pages/Admin/AdminRecipesValidationPage';
+import RecipePage from '../pages/Recipe/RecipePage';
+import SuggestionsPage from '../pages/Suggestions/SuggestionsPage';
 
 
 export const routes = [
@@ -30,6 +32,18 @@ export const routes = [
         path: '/register',
         element: RegisterPage,
         name: 'Inscription',
+        isProtected: false,
+    },
+    {
+        path: '/forgot-password',
+        element: ForgotPasswordPage,
+        name: 'Mot de passe oublié',
+        isProtected: false,
+    },
+    {
+        path: '/reset-password',
+        element: ResetPasswordPage,
+        name: 'Réinitialiser mot de passe',
         isProtected: false,
     },
     {
