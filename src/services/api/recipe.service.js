@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { normalizeRecipeImageUrl, normalizeRecipesImageUrls, normalizeImageUrl } from '../../utils/imageUrlHelper';
+import { normalizeImageUrl, normalizeRecipeImageUrl, normalizeRecipesImageUrls } from '../../utils/imageUrlHelper';
 
 const API_URL = process.env.REACT_APP_RECIPE_SERVICE_URL || 'http://localhost:8093/api/recettes';
 const PERSISTANCE_API_URL = 'http://localhost:8090/api/persistance/recettes';
@@ -576,7 +576,7 @@ class RecipesService {
      */
     async validerRecette(id) {
         try {
-            const response = await axios.put(`${PERSISTANCE_API_URL}/${id}/valider`, null, {
+            const response = await axios.put(`${API_URL}/${id}/valider`, null, {
                 headers: this.getAuthHeader()
             });
             // Invalider le cache pour forcer le rechargement
@@ -592,7 +592,7 @@ class RecipesService {
      */
     async rejeterRecette(id, motif) {
         try {
-            const response = await axios.put(`${PERSISTANCE_API_URL}/${id}/rejeter`, { motif: motif || 'Non conforme' }, {
+            const response = await axios.put(`${API_URL}/${id}/rejeter`, { motif: motif || 'Non conforme' }, {
                 headers: this.getAuthHeader()
             });
             // Invalider le cache pour forcer le rechargement
