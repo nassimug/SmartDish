@@ -1,7 +1,6 @@
 import { Award, BookOpen, ChefHat, Clock, Heart, Search, Sparkles, Star, TrendingUp, Users, Utensils, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import feedbackService from '../../services/api/feedback.service';
 import recipesService from '../../services/api/recipe.service';
 import { normalizeImageUrl } from '../../utils/imageUrlHelper';
 import { RECIPE_PLACEHOLDER_URL } from '../../utils/RecipePlaceholder';
@@ -35,20 +34,11 @@ export default function HomePage() {
                 const recipesWithDetails = await Promise.all(
                     validatedOnly.map(async (recipe) => {
                         try {
-                            let note = recipe.noteMoyenne || 0;
-                            let nombreAvis = recipe.nombreFeedbacks || 0;
-
-                            // Récupérer la note moyenne via le service feedback si pas présente
-                            if (!note || note === 0) {
-                                try {
-                                    const ratingData = await feedbackService.getAverageRatingByRecetteId(recipe.id);
-                                    note = ratingData?.moyenneNote || 0;
-                                    nombreAvis = ratingData?.nombreAvis || 0;
-                                } catch (ratingError) {
-                                    // Pas de note disponible, garder 0
-                                    console.log(`Pas de note disponible pour la recette ${recipe.id}`);
-                                }
-                            }
+                            // Enrichir avec feedbacks pour avoir la vraie moyenne
+                            const enriched = await recipesService.enrichWithFeedbacks(recipe);
+                            
+                            let note = enriched.note || 0;
+                            let nombreAvis = enriched.nombreAvis || 0;
 
                             // Tenter de récupérer une URL d'image (directUrl > presigned > fallback)
                             let primaryImageUrl = recipe.imageUrl ? normalizeImageUrl(recipe.imageUrl) : null;
@@ -90,8 +80,8 @@ export default function HomePage() {
                                 id: recipe.id,
                                 titre: recipe.titre || 'Recette sans titre',
                                 tempsPreparation: recipe.tempsTotal || 30,
-                                note: recipe.noteMoyenne || 0,
-                                nombreAvis: recipe.nombreFeedbacks || 0,
+                                note: 0,
+                                nombreAvis: 0,
                                 imageUrl: (recipe.imageUrl && normalizeImageUrl(recipe.imageUrl)) || RECIPE_PLACEHOLDER_URL,
                                 difficulte: recipe.difficulte || 'FACILE',
                                 kcal: recipe.kcal || 0
@@ -265,11 +255,11 @@ export default function HomePage() {
                                             <div className="meta-item rating">
                                                 <Star size={16} />
                                                 <span>
-                                                    {recipe.note > 0 ? recipe.note.toFixed(1) : 'N/A'}
+                                                    {recipe.note > 0 ? recipe.note.toFixed(1) : '-'}
                                                 </span>
-                                                {recipe.nombreAvis > 0 && (
-                                                    <span className="avis-count">({recipe.nombreAvis})</span>
-                                                )}
+                                                <span className="avis-count">
+                                                    ({recipe.nombreAvis > 0 ? recipe.nombreAvis : 0})
+                                                </span>
                                             </div>
                                         </div>
                                     </div>

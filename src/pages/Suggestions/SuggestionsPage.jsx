@@ -15,7 +15,6 @@ import {
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import feedbackService from '../../services/api/feedback.service';
 import recipesService from '../../services/api/recipe.service';
 import { normalizeImageUrl } from '../../utils/imageUrlHelper';
 import { RECIPE_PLACEHOLDER_URL } from '../../utils/RecipePlaceholder';
@@ -61,18 +60,11 @@ export default function SuggestionsPage() {
                 const recipesWithRatings = await Promise.all(
                     data.map(async (recipe) => {
                         try {
-                            let note = recipe.noteMoyenne || 0;
-                            let nombreAvis = recipe.nombreFeedbacks || 0;
-
-                            if (!note || note === 0) {
-                                try {
-                                    const ratingData = await feedbackService.getAverageRatingByRecetteId(recipe.id);
-                                    note = ratingData?.moyenneNote || 0;
-                                    nombreAvis = ratingData?.nombreAvis || 0;
-                                } catch (ratingError) {
-                                    console.log(`Pas de note pour recette ${recipe.id}`);
-                                }
-                            }
+                            // Enrichir avec feedbacks pour avoir la vraie moyenne
+                            const enriched = await recipesService.enrichWithFeedbacks(recipe);
+                            
+                            let note = enriched.note || 0;
+                            let nombreAvis = enriched.nombreAvis || 0;
 
                             // Choisir la meilleure image disponible (directUrl > stream > presigned > fallback)
                             let imageUrl = recipe.imageUrl ? normalizeImageUrl(recipe.imageUrl) : null;
@@ -454,9 +446,11 @@ export default function SuggestionsPage() {
                                             <div className="recipe-rating">
                                                 <Star className="star-icon star-filled" />
                                                 <span className="rating-value">
-                                                    {recipe.rating > 0 ? recipe.rating.toFixed(1) : 'N/A'}
+                                                    {recipe.rating > 0 ? recipe.rating.toFixed(1) : '-'}
                                                 </span>
-                                                <span className="rating-count">({recipe.reviews})</span>
+                                                <span className="rating-count">
+                                                    {recipe.reviews > 0 ? `(${recipe.reviews})` : '(Aucun avis)'}
+                                                </span>
                                             </div>
                                             {recipe.calories > 0 && (
                                                 <div className="recipe-calories">
