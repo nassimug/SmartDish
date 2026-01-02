@@ -2,6 +2,7 @@ import { AlertCircle, Calendar, ChefHat, Clock, Plus, Search, ShoppingCart, Star
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { LazyImage } from '../../hooks/useLazyLoad';
 import plannerService from '../../services/api/planner.service';
 import recipeService from '../../services/api/recipe.service';
 import { normalizeImageUrl } from '../../utils/imageUrlHelper';
@@ -459,12 +460,10 @@ export default function PlannerPage() {
                                                 {plannedMeal ? (
                                                     <div className="meal-card">
                                                         <div className="meal-image">
-                                                            <img
+                                                            <LazyImage
                                                                 src={plannedMeal.image || RECIPE_PLACEHOLDER_URL}
                                                                 alt={plannedMeal.title}
-                                                                onError={(e) => {
-                                                                    e.target.src = RECIPE_PLACEHOLDER_URL;
-                                                                }}
+                                                                className="meal-image-img"
                                                             />
                                                         </div>
                                                         <div className="meal-info">
@@ -593,12 +592,10 @@ export default function PlannerPage() {
                                             onClick={() => selectRecipe(recipe)}
                                         >
                                             <div className="recipe-image-modal">
-                                                <img
+                                                <LazyImage
                                                     src={recipe.imagePrincipale || RECIPE_PLACEHOLDER_URL}
                                                     alt={recipe.titre}
-                                                    onError={(e) => {
-                                                        e.target.src = RECIPE_PLACEHOLDER_URL;
-                                                    }}
+                                                    className="recipe-image-modal-img"
                                                 />
                                                 {recipe.averageRating > 0 && (
                                                     <div className="recipe-rating-badge">

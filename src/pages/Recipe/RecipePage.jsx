@@ -84,7 +84,7 @@ export default function RecipePage() {
             const enrichedData = await Promise.all(
                 data.map(async (feedback) => {
                     console.log('Processing feedback:', feedback);
-                    console.log('Date brute:', feedback.dateCreation);
+                    console.log('Date brute:', feedback.dateFeedback);
 
                     // Si les données utilisateur sont déjà présentes avec prenom/nom, on les garde
                     if (feedback.utilisateur?.prenom && feedback.utilisateur?.nom) {
@@ -275,6 +275,22 @@ export default function RecipePage() {
             }
         }
     }, [recipeId, isAdmin, loadImages]);
+
+    // Recalculer la note moyenne quand les feedbacks changent
+    useEffect(() => {
+        if (feedbacks && feedbacks.length > 0 && recipe) {
+            const totalRating = feedbacks.reduce((sum, fb) => sum + (fb.evaluation || 0), 0);
+            const averageRating = totalRating / feedbacks.length;
+            
+            setRecipe(prev => ({
+                ...prev,
+                rating: averageRating,
+                note: averageRating,
+                reviews: feedbacks.length,
+                nombreAvis: feedbacks.length
+            }));
+        }
+    }, [feedbacks]);
 
     // Fermer le menu dropdown quand on clique ailleurs
     useEffect(() => {
@@ -919,7 +935,7 @@ export default function RecipePage() {
                                                             }
                                                         </h4>
                                                         <span className="comment-date">
-                                                            {formatDate(feedback.dateCreation)}
+                                                            {formatDate(feedback.dateFeedback)}
                                                         </span>
                                                     </div>
                                                 </div>
