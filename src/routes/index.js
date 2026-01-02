@@ -1,14 +1,18 @@
+import AccountPage from "../pages/Account/AccountPage";
+import AdminRecipesValidationPage from '../pages/Admin/AdminRecipesValidationPage';
+import ForgotPasswordPage from "../pages/Auth/ForgotPasswordPage";
+import LoginPage from "../pages/Auth/LoginPage";
+import RegisterPage from "../pages/Auth/RegisterPage";
+import ResetPasswordPage from "../pages/Auth/ResetPasswordPage";
+import FavoritesPage from '../pages/Favorites/FavoritesPage';
 import HomePage from '../pages/Home/HomePage';
 import IngredientsPage from '../pages/Ingredients/IngredientsPage';
 import SuggestionsPage from '../pages/Suggestions/SuggestionsPage';
 import AIRecommendationsPage from '../pages/AIRecommendations/AIRecommendationsPage';
 import RecipePage from '../pages/Recipe/RecipePage';
-import FavoritesPage from '../pages/Favorites/FavoritesPage';
-import {NotFoundPage} from "../pages/NotFound/NotFoundPage";
-import RegisterPage from "../pages/Auth/RegisterPage";
-import LoginPage from "../pages/Auth/LoginPage";
-import AccountPage from "../pages/Account/AccountPage";
+import { NotFoundPage } from "../pages/NotFound/NotFoundPage";
 import PlannerPage from "../pages/Planner/PlannerPage";
+import CreateRecipePage from '../pages/Recipe/CreateRecipePage';
 
 
 export const routes = [
@@ -29,6 +33,18 @@ export const routes = [
         path: '/register',
         element: RegisterPage,
         name: 'Inscription',
+        isProtected: false,
+    },
+    {
+        path: '/forgot-password',
+        element: ForgotPasswordPage,
+        name: 'Mot de passe oublié',
+        isProtected: false,
+    },
+    {
+        path: '/reset-password',
+        element: ResetPasswordPage,
+        name: 'Réinitialiser mot de passe',
         isProtected: false,
     },
     {
@@ -56,14 +72,6 @@ export const routes = [
         isProtected: false,
     },
 
-     // Route 404
-    {
-        path: '*',
-        element: NotFoundPage,
-        name: '404',
-        isProtected: false,
-    },
-
     // Routes protégées (nécessitent authentification)
     {
         path: '/favoris',
@@ -83,6 +91,24 @@ export const routes = [
         name: 'Mon Compte',
         isProtected: true,
     },
+    {
+        path: '/recette/nouvelle',
+        element: CreateRecipePage,
+        name: 'Créer une recette',
+        isProtected: true,
+    },
+    {
+        path: '/admin/validation-recettes',
+        element: AdminRecipesValidationPage,
+        name: 'Validation Recettes (Admin)',
+        isProtected: true,
+    },
+    {
+        path: '*',
+        element: NotFoundPage,
+        name: '404',
+        isProtected: false,
+    },
 ];
 
 export const navigationRoutes = [
@@ -98,7 +124,7 @@ export const navigationRoutes = [
     },
     {
         path: '/suggestions',
-        name: 'Suggestions',
+        name: 'Recettes',
         icon: 'Sparkles',
     },
     {

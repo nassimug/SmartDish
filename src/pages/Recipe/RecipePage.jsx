@@ -1,17 +1,30 @@
-import { useState, useEffect } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
-    Clock, Users, Star, Heart, Share2, ChefHat, Flame,
-    CheckCircle2, ArrowLeft, Lightbulb, AlertCircle, Timer, Scale
+    ArrowLeft,
+    CheckCircle2,
+    ChefHat,
+    Clock,
+    Flame,
+    Heart,
+    Lightbulb,
+    MoreVertical,
+    Scale,
+    Share2,
+    Star,
+    Timer,
+    Users
 } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import recipesService from '../../services/api/recipe.service';
 import feedbackService from '../../services/api/feedback.service';
+import recipesService from '../../services/api/recipe.service';
+import { normalizeImageUrl } from '../../utils/imageUrlHelper';
+import { RECIPE_PLACEHOLDER_URL } from '../../utils/RecipePlaceholder';
 import './RecipePage.css';
 
 export default function RecipePage() {
     const { id } = useParams();
-    const navigate = useNavigate();
+    // navigate non utilisé
     const { user } = useAuth();
     const recipeId = parseInt(id);
 
@@ -28,8 +41,115 @@ export default function RecipePage() {
     const [uploadingImage, setUploadingImage] = useState(false);
     const [showImageManager, setShowImageManager] = useState(false);
 
+    // États pour les feedbacks/commentaires
+    const [feedbacks, setFeedbacks] = useState([]);
+    const [loadingFeedbacks, setLoadingFeedbacks] = useState(false);
+    const [newFeedback, setNewFeedback] = useState({
+        note: 0,
+        commentaire: ''
+    });
+    const [submittingFeedback, setSubmittingFeedback] = useState(false);
+    const [hoverRating, setHoverRating] = useState(0);
+    const [userFeedback, setUserFeedback] = useState(null); // Avis de l'utilisateur actuel
+    const [editingFeedback, setEditingFeedback] = useState(false); // Mode édition
+    const [openMenuId, setOpenMenuId] = useState(null); // Menu ouvert
+
     // Vérifier si l'utilisateur est admin
     const isAdmin = user?.role === 'ADMIN';
+
+    // Charger les images (admin uniquement)
+    const loadImages = useCallback(async () => {
+        try {
+            const data = await recipesService.getImages(recipeId);
+            const normalized = (data || []).map((img) => {
+                const display = img.directUrl || img.urlStream || img.urlTelechargement || img.url || img.cheminFichier;
+                const finalUrl = display ? normalizeImageUrl(display) : display;
+                return { ...img, displayUrl: finalUrl };
+            });
+            setImages(normalized);
+        } catch (err) {
+            console.error('Erreur chargement images:', err);
+        }
+    }, [recipeId]);
+
+    // Charger les feedbacks
+    const loadFeedbacks = useCallback(async () => {
+        try {
+            setLoadingFeedbacks(true);
+            let data = await feedbackService.getFeedbacksByRecetteId(recipeId);
+            data = data || [];
+            console.log('Feedbacks bruts du backend:', JSON.stringify(data, null, 2));
+
+            // Enrichir les feedbacks avec les données utilisateur si manquantes
+            const enrichedData = await Promise.all(
+                data.map(async (feedback) => {
+                    console.log('Processing feedback:', feedback);
+                    console.log('Date brute:', feedback.dateFeedback);
+
+                    // Si les données utilisateur sont déjà présentes avec prenom/nom, on les garde
+                    if (feedback.utilisateur?.prenom && feedback.utilisateur?.nom) {
+                        return feedback;
+                    }
+
+                    // Sinon, essayer de récupérer les infos depuis ms-utilisateur
+                    if (feedback.utilisateurId) {
+                        try {
+                            const response = await fetch(`http://localhost:8092/api/utilisateurs/${feedback.utilisateurId}`, {
+                                headers: {
+                                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                                }
+                            });
+
+                            if (response.ok) {
+                                const userData = await response.json();
+                                console.log('User data récupéré depuis ms-utilisateur:', userData);
+                                return {
+                                    ...feedback,
+                                    utilisateur: {
+                                        id: userData.id,
+                                        prenom: userData.prenom || 'Utilisateur',
+                                        nom: userData.nom || 'Anonyme'
+                                    }
+                                };
+                            }
+                        } catch (error) {
+                            console.error(`Erreur récupération utilisateur ${feedback.utilisateurId}:`, error);
+                        }
+                    }
+
+                    // Fallback : créer un utilisateur par défaut
+                    return {
+                        ...feedback,
+                        utilisateur: {
+                            id: feedback.utilisateurId,
+                            prenom: 'Utilisateur',
+                            nom: `#${feedback.utilisateurId}`
+                        }
+                    };
+                })
+            );
+
+            setFeedbacks(enrichedData);
+
+            // Chercher l'avis de l'utilisateur actuel
+            if (user && enrichedData) {
+                const myFeedback = enrichedData.find(f => f.utilisateur?.id === user.id || f.utilisateurId === user.id);
+                if (myFeedback) {
+                    setUserFeedback(myFeedback);
+                    // NE PAS charger automatiquement dans le formulaire
+                    // L'utilisateur doit cliquer sur "Modifier" pour ça
+                } else {
+                    setUserFeedback(null);
+                    setEditingFeedback(false);
+                }
+            }
+        } catch (err) {
+            console.error('Erreur chargement feedbacks:', err);
+            setFeedbacks([]);
+        } finally {
+            setLoadingFeedbacks(false);
+        }
+    }, [recipeId, user]);
 
     // Charger la recette depuis l'API
     useEffect(() => {
@@ -38,8 +158,8 @@ export default function RecipePage() {
                 setLoading(true);
                 setError(null);
 
-                // Récupérer la recette
-                const data = await recipesService.getRecetteById(recipeId);
+                // Récupérer la recette (version async optimisée)
+                const data = await recipesService.getRecetteByIdAsync(recipeId);
 
                 // Récupérer les feedbacks pour la note
                 let note = data.noteMoyenne || 0;
@@ -61,8 +181,8 @@ export default function RecipePage() {
                     title: data.titre,
                     titre: data.titre,
                     description: data.description || 'Délicieuse recette à découvrir !',
-                    image: data.imageUrl,
-                    imageUrl: data.imageUrl,
+                    image: data.imageUrl ? normalizeImageUrl(data.imageUrl) : data.imageUrl,
+                    imageUrl: data.imageUrl ? normalizeImageUrl(data.imageUrl) : data.imageUrl,
                     cookTime: data.tempsTotal ? `${data.tempsTotal} min` : 'N/A',
                     tempsPreparation: data.tempsTotal,
                     prepTime: data.tempsTotal ? `${data.tempsTotal} min` : 'N/A',
@@ -80,9 +200,10 @@ export default function RecipePage() {
                     categorie: data.categorie,
 
                     // Mapper les ingrédients
+                    // Utiliser nomAliment si disponible (nom personnalisé), sinon alimentNom (nom de la base)
                     ingredients: data.ingredients?.map(ing => ({
-                        name: ing.alimentNom,
-                        nom: ing.alimentNom,
+                        name: ing.nomAliment || ing.alimentNom,
+                        nom: ing.nomAliment || ing.alimentNom,
                         quantity: `${ing.quantite} ${ing.unite?.toLowerCase() || ''}`.trim(),
                         quantite: `${ing.quantite} ${ing.unite?.toLowerCase() || ''}`.trim(),
                         essential: ing.principal !== false,
@@ -113,12 +234,32 @@ export default function RecipePage() {
                     substitutions: []
                 };
 
+                // Essayer de récupérer une image (préférence: directUrl > stream > presigned)
+                try {
+                    const imgs = await recipesService.getImages(recipeId);
+                    if (imgs && imgs.length > 0) {
+                        const candidate = imgs[0];
+                        const chosen = candidate.directUrl || candidate.urlStream || candidate.urlTelechargement || candidate.url;
+                        if (chosen) {
+                            const normalized = normalizeImageUrl(chosen);
+                            mappedRecipe.image = normalized;
+                            mappedRecipe.imageUrl = normalized;
+                        }
+                    }
+                } catch (e) {
+                    // Ignorer si indisponible
+                }
+
                 setRecipe(mappedRecipe);
 
                 // Si admin, charger aussi les images
                 if (isAdmin) {
                     loadImages();
                 }
+
+                // Charger les feedbacks
+                loadFeedbacks();
+                
             } catch (err) {
                 console.error('Erreur lors du chargement de la recette:', err);
                 setError(err.message || 'Impossible de charger la recette');
@@ -129,18 +270,39 @@ export default function RecipePage() {
 
         if (recipeId) {
             loadRecipe();
+            if (isAdmin) {
+                loadImages();
+            }
         }
-    }, [recipeId, isAdmin]);
+    }, [recipeId, isAdmin, loadImages]);
 
-    // Charger les images (admin uniquement)
-    const loadImages = async () => {
-        try {
-            const data = await recipesService.getImages(recipeId);
-            setImages(data || []);
-        } catch (err) {
-            console.error('Erreur chargement images:', err);
+    // Recalculer la note moyenne quand les feedbacks changent
+    useEffect(() => {
+        if (feedbacks && feedbacks.length > 0 && recipe) {
+            const totalRating = feedbacks.reduce((sum, fb) => sum + (fb.evaluation || 0), 0);
+            const averageRating = totalRating / feedbacks.length;
+            
+            setRecipe(prev => ({
+                ...prev,
+                rating: averageRating,
+                note: averageRating,
+                reviews: feedbacks.length,
+                nombreAvis: feedbacks.length
+            }));
         }
-    };
+    }, [feedbacks]);
+
+    // Fermer le menu dropdown quand on clique ailleurs
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (openMenuId && !event.target.closest('.comment-menu')) {
+                setOpenMenuId(null);
+            }
+        };
+
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, [openMenuId]);
 
     // Upload d'image (admin uniquement)
     const handleImageUpload = async (event) => {
@@ -165,15 +327,18 @@ export default function RecipePage() {
             await loadImages();
 
             if (!recipe.image || recipe.image.includes('placeholder')) {
-                const imageUrl = result.url || result.cheminFichier;
-                setRecipe({ ...recipe, image: imageUrl });
+                const chosen = result.directUrl || result.urlStream || result.urlTelechargement || result.url || result.cheminFichier;
+                const imageUrl = chosen ? normalizeImageUrl(chosen) : chosen;
+                if (imageUrl) {
+                    setRecipe({ ...recipe, image: imageUrl, imageUrl: imageUrl });
 
-                try {
-                    await recipesService.updateRecette(recipeId, {
-                        imageUrl: imageUrl
-                    });
-                } catch (err) {
-                    console.error('Erreur mise à jour image principale:', err);
+                    try {
+                        await recipesService.updateRecette(recipeId, {
+                            imageUrl: imageUrl
+                        });
+                    } catch (err) {
+                        console.error('Erreur mise à jour image principale:', err);
+                    }
                 }
             }
 
@@ -224,6 +389,195 @@ export default function RecipePage() {
                 console.error('Erreur rechargement:', reloadErr);
             }
         }
+    };
+
+    // Soumettre un nouveau feedback ou modifier l'existant
+    const handleSubmitFeedback = async (e) => {
+        e.preventDefault();
+
+        if (!user) {
+            alert('Vous devez être connecté pour laisser un avis');
+            return;
+        }
+
+        if (newFeedback.note === 0) {
+            alert('Veuillez sélectionner une note');
+            return;
+        }
+
+        if (!newFeedback.commentaire.trim()) {
+            alert('Veuillez écrire un commentaire');
+            return;
+        }
+
+        try {
+            setSubmittingFeedback(true);
+
+            // Si l'utilisateur a déjà un avis, le supprimer d'abord
+            if (userFeedback && editingFeedback) {
+                try {
+                    await feedbackService.deleteFeedback(userFeedback.id);
+                    console.log('Ancien avis supprimé, création du nouveau...');
+                } catch (err) {
+                    console.error('Erreur suppression ancien avis:', err);
+                    throw new Error('Impossible de modifier votre avis. Veuillez réessayer.');
+                }
+            }
+
+            const feedbackData = {
+                recetteId: String(recipeId),
+                utilisateurId: String(user.id),
+                evaluation: newFeedback.note,
+                commentaire: newFeedback.commentaire.trim(),
+                dateCreation: new Date().toISOString()
+            };
+
+            console.log('Envoi du feedback:', feedbackData);
+
+            // Créer le nouveau feedback
+            const newFeedbackResponse = await feedbackService.createFeedback(feedbackData);
+            console.log('Feedback créé:', newFeedbackResponse);
+
+            // Réinitialiser le formulaire
+            setNewFeedback({ note: 0, commentaire: '' });
+            setEditingFeedback(false);
+            setUserFeedback(null);
+
+            // Recharger les feedbacks
+            await loadFeedbacks();
+
+            // Recharger la note moyenne de la recette
+            try {
+                const ratingData = await feedbackService.getAverageRatingByRecetteId(recipeId);
+                console.log('Note moyenne mise à jour:', ratingData);
+                setRecipe(prev => ({
+                    ...prev,
+                    rating: ratingData?.moyenneNote || 0,
+                    reviews: ratingData?.nombreAvis || 0,
+                    noteMoyenne: ratingData?.moyenneNote || 0,
+                    nombreFeedbacks: ratingData?.nombreAvis || 0
+                }));
+            } catch (err) {
+                console.error('Erreur rechargement note:', err);
+            }
+
+            alert(editingFeedback ? 'Votre avis a été modifié avec succès !' : 'Votre avis a été publié avec succès !');
+
+        } catch (err) {
+            console.error('Erreur soumission feedback:', err);
+            
+            // Message d'erreur plus précis
+            let errorMessage = 'Erreur lors de l\'envoi de votre avis';
+            
+            if (err.message) {
+                if (err.message.includes('déjà noté')) {
+                    errorMessage = 'Vous avez déjà noté cette recette. Vous pouvez modifier votre avis existant.';
+                } else if (err.message.includes('Service') || err.message.includes('serveur')) {
+                    errorMessage = 'Service temporairement indisponible. Veuillez réessayer.';
+                } else {
+                    errorMessage = err.message;
+                }
+            }
+            
+            alert(errorMessage);
+        } finally {
+            setSubmittingFeedback(false);
+        }
+    };
+
+    // Annuler l'édition d'un avis
+    const handleCancelEdit = () => {
+        setNewFeedback({ note: 0, commentaire: '' });
+        setEditingFeedback(false);
+        setUserFeedback(null);
+    };
+
+    // Supprimer l'avis de l'utilisateur
+    const handleDeleteFeedback = async () => {
+        if (!userFeedback) return;
+
+        if (!window.confirm('Êtes-vous sûr de vouloir supprimer votre avis ?')) {
+            return;
+        }
+
+        try {
+            setSubmittingFeedback(true);
+            await feedbackService.deleteFeedback(userFeedback.id);
+
+            // Réinitialiser le formulaire
+            setNewFeedback({ note: 0, commentaire: '' });
+            setEditingFeedback(false);
+            setUserFeedback(null);
+
+            // Recharger les feedbacks
+            await loadFeedbacks();
+
+            // Recharger la note moyenne
+            try {
+                const ratingData = await feedbackService.getAverageRatingByRecetteId(recipeId);
+                setRecipe(prev => ({
+                    ...prev,
+                    rating: ratingData?.moyenneNote || 0,
+                    reviews: ratingData?.nombreAvis || 0
+                }));
+            } catch (err) {
+                console.error('Erreur rechargement note:', err);
+            }
+
+            alert('Votre avis a été supprimé');
+        } catch (err) {
+            console.error('Erreur suppression feedback:', err);
+            alert('Erreur lors de la suppression de votre avis: ' + err.message);
+        } finally {
+            setSubmittingFeedback(false);
+        }
+    };
+
+    // Formater la date
+    const formatDate = (dateString) => {
+        console.log('formatDate appelé avec:', dateString, 'Type:', typeof dateString);
+        
+        if (!dateString) {
+            console.log('Date null ou undefined');
+            return 'Date inconnue';
+        }
+        
+        const date = new Date(dateString);
+        console.log('Date parsée:', date, 'isNaN:', isNaN(date.getTime()));
+        
+        if (isNaN(date.getTime())) {
+            console.log('Date invalide après parsing');
+            return 'Date invalide';
+        }
+        
+        const now = new Date();
+        const diffMs = now - date;
+        const diffSeconds = Math.floor(diffMs / 1000);
+        const diffMinutes = Math.floor(diffSeconds / 60);
+        const diffHours = Math.floor(diffMinutes / 60);
+        const diffDays = Math.floor(diffHours / 24);
+        const diffWeeks = Math.floor(diffDays / 7);
+        const diffMonths = Math.floor(diffDays / 30);
+        const diffYears = Math.floor(diffDays / 365);
+
+        // Moins d'une minute
+        if (diffSeconds < 60) return 'À l\'instant';
+        // Moins d'une heure
+        if (diffMinutes < 60) return `Il y a ${diffMinutes} minute${diffMinutes > 1 ? 's' : ''}`;
+        // Moins d'une journée
+        if (diffHours < 24) return `Il y a ${diffHours} heure${diffHours > 1 ? 's' : ''}`;
+        // Aujourd'hui (0 à 24h)
+        if (diffDays === 0) return 'Aujourd\'hui à ' + date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        // Hier
+        if (diffDays === 1) return 'Hier à ' + date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        // Moins d'une semaine
+        if (diffDays < 7) return `Il y a ${diffDays} jour${diffDays > 1 ? 's' : ''}`;
+        // Moins d'un mois
+        if (diffWeeks < 4) return `Il y a ${diffWeeks} semaine${diffWeeks > 1 ? 's' : ''}`;
+        // Moins d'une année
+        if (diffMonths < 12) return `Il y a ${diffMonths} mois`;
+        // Années
+        return `Il y a ${diffYears} an${diffYears > 1 ? 's' : ''}`;
     };
 
     // État de chargement
@@ -289,11 +643,12 @@ export default function RecipePage() {
                 <div className="recipe-header-grid">
                     <div className="recipe-image-container">
                         <img
-                            src={recipe.image || recipe.imageUrl || 'https://via.placeholder.com/600x400?text=Recipe'}
+                            src={recipe.image || recipe.imageUrl || RECIPE_PLACEHOLDER_URL}
                             alt={recipe.title || recipe.titre}
                             className="recipe-main-image"
                             onError={(e) => {
-                                e.target.src = 'https://via.placeholder.com/600x400?text=Recipe';
+                                console.warn('❌ Erreur chargement image recette:', recipe.imageUrl);
+                                e.target.src = RECIPE_PLACEHOLDER_URL;
                             }}
                         />
 
@@ -341,7 +696,7 @@ export default function RecipePage() {
                             <div className="stat-box">
                                 <Flame className="stat-icon" />
                                 <div className="stat-label">Calories</div>
-                                <div className="stat-value">{recipe.calories || 'N/A'}</div>
+                                <div className="stat-value">{recipe.calories || '-'}</div>
                             </div>
                         </div>
 
@@ -350,9 +705,11 @@ export default function RecipePage() {
                             <div className="recipe-rating">
                                 <Star className="star-icon star-filled" />
                                 <span className="rating-value">
-                                    {recipe.rating > 0 ? recipe.rating.toFixed(1) : 'N/A'}
+                                    {recipe.rating > 0 ? recipe.rating.toFixed(1) : '-'}
                                 </span>
-                                <span className="rating-count">({recipe.reviews} avis)</span>
+                                <span className="rating-count">
+                                    {recipe.reviews > 0 ? `(${recipe.reviews} avis)` : '(Aucun avis)'}
+                                </span>
                             </div>
 
                             <div className="action-buttons">
@@ -363,11 +720,286 @@ export default function RecipePage() {
                                     <Heart className={`icon-sm ${isFavorite ? 'heart-filled' : ''}`} />
                                     {isFavorite ? 'Retiré' : 'Favoris'}
                                 </button>
-                                <button className="btn btn-outline btn-sm">
+                                <button 
+                                    className="btn btn-outline btn-sm"
+                                    onClick={() => {
+                                        const shareText = `Découvrez cette délicieuse recette: ${recipe.titre}`;
+                                        const shareUrl = window.location.href;
+                                        
+                                        if (navigator.share) {
+                                            navigator.share({
+                                                title: recipe.titre,
+                                                text: shareText,
+                                                url: shareUrl
+                                            }).catch(err => console.log('Erreur partage:', err));
+                                        } else {
+                                            // Fallback: copier dans le presse-papier
+                                            navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+                                            alert('Lien copié dans le presse-papier !');
+                                        }
+                                    }}
+                                >
                                     <Share2 className="icon-sm" />
                                     Partager
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Section Commentaires et Feedbacks - Après les boutons Favoris/Partager */}
+                <div className="comments-section">
+                    <div className="container">
+                        <div className="comments-header">
+                            <h2 className="section-title">
+                                <Star className="icon-md" />
+                                Avis et commentaires
+                                <span className="reviews-count">({feedbacks.length})</span>
+                            </h2>
+                        </div>
+
+                        {/* Formulaire d'ajout de commentaire */}
+                        {user && !userFeedback && !editingFeedback ? (
+                            <div className="add-comment-card">
+                                <h3 className="card-title-sm">
+                                    Laissez votre avis
+                                </h3>
+                                <form onSubmit={handleSubmitFeedback} className="comment-form">
+                                    {/* Sélection de note */}
+                                    <div className="rating-input">
+                                        <label className="form-label">Votre note</label>
+                                        <div className="stars-input">
+                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                <Star
+                                                    key={star}
+                                                    className={`star-icon ${
+                                                        star <= (hoverRating || newFeedback.note) ? 'filled' : ''
+                                                    }`}
+                                                    onClick={() => setNewFeedback({ ...newFeedback, note: star })}
+                                                    onMouseEnter={() => setHoverRating(star)}
+                                                    onMouseLeave={() => setHoverRating(0)}
+                                                />
+                                            ))}
+                                            <span className="rating-text">
+                                                {newFeedback.note > 0 ? `${newFeedback.note}/5` : 'Sélectionnez une note'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Zone de commentaire */}
+                                    <div className="form-group">
+                                        <label htmlFor="commentaire" className="form-label">
+                                            Votre commentaire
+                                        </label>
+                                        <textarea
+                                            id="commentaire"
+                                            className="form-textarea"
+                                            placeholder="Partagez votre expérience avec cette recette..."
+                                            rows="4"
+                                            value={newFeedback.commentaire}
+                                            onChange={(e) =>
+                                                setNewFeedback({ ...newFeedback, commentaire: e.target.value })
+                                            }
+                                            disabled={submittingFeedback}
+                                        />
+                                    </div>
+
+                                    {/* Boutons d'action */}
+                                    <div className="form-buttons">
+                                        <button
+                                            type="submit"
+                                            className="btn btn-primary"
+                                            disabled={submittingFeedback}
+                                        >
+                                            {submittingFeedback ? 'En cours...' : 'Publier mon avis'}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        ) : null}
+
+                        {/* Formulaire d'édition (affiché quand l'utilisateur clique sur "Modifier") */}
+                        {user && editingFeedback && userFeedback ? (
+                            <div className="add-comment-card edit-mode">
+                                <h3 className="card-title-sm">Modifier votre avis</h3>
+                                <form onSubmit={handleSubmitFeedback} className="comment-form">
+                                    {/* Sélection de note */}
+                                    <div className="rating-input">
+                                        <label className="form-label">Votre note</label>
+                                        <div className="stars-input">
+                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                <Star
+                                                    key={star}
+                                                    className={`star-icon ${
+                                                        star <= (hoverRating || newFeedback.note) ? 'filled' : ''
+                                                    }`}
+                                                    onClick={() => setNewFeedback({ ...newFeedback, note: star })}
+                                                    onMouseEnter={() => setHoverRating(star)}
+                                                    onMouseLeave={() => setHoverRating(0)}
+                                                />
+                                            ))}
+                                            <span className="rating-text">
+                                                {newFeedback.note > 0 ? `${newFeedback.note}/5` : 'Sélectionnez une note'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Zone de commentaire */}
+                                    <div className="form-group">
+                                        <label htmlFor="commentaire-edit" className="form-label">
+                                            Votre commentaire
+                                        </label>
+                                        <textarea
+                                            id="commentaire-edit"
+                                            className="form-textarea"
+                                            placeholder="Partagez votre expérience avec cette recette..."
+                                            rows="4"
+                                            value={newFeedback.commentaire}
+                                            onChange={(e) =>
+                                                setNewFeedback({ ...newFeedback, commentaire: e.target.value })
+                                            }
+                                            disabled={submittingFeedback}
+                                        />
+                                    </div>
+
+                                    {/* Boutons d'action */}
+                                    <div className="form-buttons">
+                                        <button
+                                            type="submit"
+                                            className="btn btn-primary"
+                                            disabled={submittingFeedback}
+                                        >
+                                            {submittingFeedback ? 'En cours...' : 'Mettre à jour mon avis'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn btn-secondary"
+                                            onClick={handleCancelEdit}
+                                            disabled={submittingFeedback}
+                                        >
+                                            Annuler
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn btn-danger"
+                                            onClick={handleDeleteFeedback}
+                                            disabled={submittingFeedback}
+                                        >
+                                            Supprimer mon avis
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        ) : null}
+
+                        {/* Message pour les utilisateurs non connectés */}
+                        {!user ? (
+                            <div className="login-prompt">
+                                <p>
+                                    <Link to="/login" className="auth-link">
+                                        Connectez-vous
+                                    </Link>{' '}
+                                    pour laisser un avis sur cette recette
+                                </p>
+                            </div>
+                        ) : null}
+
+                        {/* Liste des commentaires */}
+                        <div className="comments-list">
+                            {loadingFeedbacks ? (
+                                <div className="loading-feedbacks">
+                                    <div className="spinner"></div>
+                                    <p>Chargement des avis...</p>
+                                </div>
+                            ) : feedbacks.length === 0 ? (
+                                <div className="no-comments">
+                                    <Star className="empty-icon" />
+                                    <p>Aucun avis pour le moment</p>
+                                    <p className="text-muted">Soyez le premier à donner votre avis !</p>
+                                </div>
+                            ) : (
+                                feedbacks.map((feedback) => {
+                                    const isMyFeedback = user && (feedback.utilisateurId === user.id || feedback.utilisateur?.id === user.id);
+                                    return (
+                                        <div key={feedback.id} className="comment-card">
+                                            <div className="comment-header">
+                                                <div className="comment-author">
+                                                    <div className="author-avatar">
+                                                        {feedback.utilisateur?.prenom?.[0] || feedback.utilisateur?.nom?.[0] || 'U'}
+                                                    </div>
+                                                    <div className="author-info">
+                                                        <h4 className="author-name">
+                                                            {feedback.utilisateur?.prenom && feedback.utilisateur?.prenom !== 'Utilisateur'
+                                                                ? `${feedback.utilisateur.prenom} ${feedback.utilisateur.nom || ''}`
+                                                                : feedback.utilisateur?.nom || 'Utilisateur'
+                                                            }
+                                                        </h4>
+                                                        <span className="comment-date">
+                                                            {formatDate(feedback.dateFeedback)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="comment-rating-wrapper">
+                                                    <div className="comment-rating">
+                                                        {[...Array(5)].map((_, i) => (
+                                                            <Star
+                                                                key={i}
+                                                                className={`star-icon ${
+                                                                    i < (feedback.evaluation || feedback.note || 0) ? 'filled' : ''
+                                                                }`}
+                                                                size={16}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                    {isMyFeedback && (
+                                                        <div className="comment-menu">
+                                                            <button
+                                                                className="menu-trigger"
+                                                                onClick={() => setOpenMenuId(openMenuId === feedback.id ? null : feedback.id)}
+                                                                aria-label="Options du commentaire"
+                                                            >
+                                                                <MoreVertical size={20} />
+                                                            </button>
+                                                            {openMenuId === feedback.id && (
+                                                                <div className="dropdown-menu">
+                                                                    <button
+                                                                        className="menu-item edit"
+                                                                        onClick={() => {
+                                                                            setUserFeedback(feedback);
+                                                                            setNewFeedback({
+                                                                                note: feedback.evaluation || feedback.note || 0,
+                                                                                commentaire: feedback.commentaire || ''
+                                                                            });
+                                                                            setEditingFeedback(true);
+                                                                            setOpenMenuId(null);
+                                                                            // Scroll vers le formulaire
+                                                                            document.querySelector('.add-comment-card')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                                                        }}
+                                                                    >
+                                                                        Modifier
+                                                                    </button>
+                                                                    <button
+                                                                        className="menu-item delete"
+                                                                        onClick={() => {
+                                                                            setOpenMenuId(null);
+                                                                            handleDeleteFeedback();
+                                                                        }}
+                                                                    >
+                                                                        Supprimer
+                                                                    </button>
+                                                                </div>
+                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="comment-content">
+                                                <p>{feedback.commentaire}</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
                         </div>
                     </div>
                 </div>
@@ -418,7 +1050,7 @@ export default function RecipePage() {
                             <div className="images-grid">
                                 {images.length > 0 ? (
                                     images.map((img) => {
-                                        const imageUrl = img.url || img.cheminFichier;
+                                        const imageUrl = img.displayUrl || img.url || img.cheminFichier;
                                         const isMainImage = recipe.image === imageUrl || recipe.imageUrl === imageUrl;
 
                                         return (
@@ -595,24 +1227,60 @@ export default function RecipePage() {
 
                             {/* Nutrition Tab */}
                             {activeTab === 'nutrition' && (
-                                <div className="card">
-                                    <div className="card-header">
+                                <div className="card nutrition-card-modern">
+                                    <div className="card-header nutrition-header">
                                         <h3 className="card-title">
-                                            Informations nutritionnelles (par portion)
+                                            <Flame className="icon-sm" />
+                                            Informations nutritionnelles
                                         </h3>
+                                        <span className="portion-badge">Par portion</span>
                                     </div>
                                     <div className="card-content">
                                         {recipe.calories > 0 ? (
-                                            <div className="nutrition-grid">
-                                                <div className="nutrition-item">
-                                                    <span className="nutrition-label">Calories</span>
-                                                    <span className="nutrition-value red">
-                                                        {recipe.calories} kcal
-                                                    </span>
+                                            <div className="nutrition-modern-grid">
+                                                <div className="nutrition-item-modern calories">
+                                                    <div className="nutrition-icon-wrapper">
+                                                        <Flame className="nutrition-icon" />
+                                                    </div>
+                                                    <div className="nutrition-details">
+                                                        <span className="nutrition-value-lg">{recipe.calories}</span>
+                                                        <span className="nutrition-label-sm">Calories (kcal)</span>
+                                                    </div>
+                                                </div>
+                                                <div className="nutrition-item-modern protein">
+                                                    <div className="nutrition-icon-wrapper">
+                                                        <Scale className="nutrition-icon" />
+                                                    </div>
+                                                    <div className="nutrition-details">
+                                                        <span className="nutrition-value-lg">-</span>
+                                                        <span className="nutrition-label-sm">Protéines (g)</span>
+                                                    </div>
+                                                </div>
+                                                <div className="nutrition-item-modern carbs">
+                                                    <div className="nutrition-icon-wrapper">
+                                                        <ChefHat className="nutrition-icon" />
+                                                    </div>
+                                                    <div className="nutrition-details">
+                                                        <span className="nutrition-value-lg">-</span>
+                                                        <span className="nutrition-label-sm">Glucides (g)</span>
+                                                    </div>
+                                                </div>
+                                                <div className="nutrition-item-modern fats">
+                                                    <div className="nutrition-icon-wrapper">
+                                                        <Heart className="nutrition-icon" />
+                                                    </div>
+                                                    <div className="nutrition-details">
+                                                        <span className="nutrition-value-lg">-</span>
+                                                        <span className="nutrition-label-sm">Lipides (g)</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         ) : (
-                                            <p className="empty-text">Informations nutritionnelles non disponibles</p>
+                                            <div className="nutrition-empty">
+                                                <Flame className="empty-icon" />
+                                                <p className="empty-title">Informations nutritionnelles non disponibles</p>
+                                                <p className="empty-desc">Ces informations seront ajoutées prochainement</p>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
@@ -621,36 +1289,109 @@ export default function RecipePage() {
 
                         {/* Sidebar */}
                         <div className="recipe-sidebar">
-                            <div className="card">
+                            <div className="card actions-card-gradient">
                                 <div className="card-header">
-                                    <h3 className="card-title-sm">Actions rapides</h3>
+                                    <h3 className="card-title-sm">
+                                        <Star className="icon-sm" />
+                                        Actions rapides
+                                    </h3>
                                 </div>
                                 <div className="card-content quick-actions">
-                                    <button className="btn btn-primary btn-full">
+                                    <button className="btn btn-primary btn-full btn-animated">
                                         <Timer className="icon-sm" />
                                         Démarrer la cuisson
                                     </button>
-                                    <button className="btn btn-outline btn-full">
+                                    <button className="btn btn-outline btn-full btn-animated">
                                         <ChefHat className="icon-sm" />
                                         Ajouter au planificateur
+                                    </button>
+                                    <button className="btn btn-outline btn-full btn-animated">
+                                        <Share2 className="icon-sm" />
+                                        Partager cette recette
                                     </button>
                                 </div>
                             </div>
 
-                            <div className="card tips-card-accent">
+                            <div className="card info-card-modern">
                                 <div className="card-header">
                                     <h3 className="card-title-sm">
                                         <Lightbulb className="icon-sm text-accent" />
-                                        Info
+                                        Informations
                                     </h3>
                                 </div>
                                 <div className="card-content">
-                                    <p className="chef-tip-text">
-                                        Difficulté : {recipe.difficulty}
-                                        <br />
-                                        Catégorie : {recipe.categorie || 'Non catégorisé'}
+                                    <div className="info-list">
+                                        <div className="info-item">
+                                            <ChefHat className="info-icon" />
+                                            <div className="info-text">
+                                                <span className="info-label">Difficulté</span>
+                                                <span className="info-value">{recipe.difficulty}</span>
+                                            </div>
+                                        </div>
+                                        <div className="info-item">
+                                            <Star className="info-icon" />
+                                            <div className="info-text">
+                                                <span className="info-label">Catégorie</span>
+                                                <span className="info-value">{recipe.categorie || 'Non catégorisé'}</span>
+                                            </div>
+                                        </div>
+                                        <div className="info-item">
+                                            <Clock className="info-icon" />
+                                            <div className="info-text">
+                                                <span className="info-label">Temps total</span>
+                                                <span className="info-value">{recipe.cookTime}</span>
+                                            </div>
+                                        </div>
+                                        <div className="info-item">
+                                            <Users className="info-icon" />
+                                            <div className="info-text">
+                                                <span className="info-label">Portions</span>
+                                                <span className="info-value">{recipe.servings} personnes</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="card tips-card-gradient">
+                                <div className="card-header">
+                                    <h3 className="card-title-sm">
+                                        <Lightbulb className="icon-sm" />
+                                        Astuce du chef
+                                    </h3>
+                                </div>
+                                <div className="card-content">
+                                    <p className="chef-tip-modern">
+                                        💡 Pour de meilleurs résultats, suivez l'ordre des étapes et respectez les temps de cuisson indiqués.
                                     </p>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer Info Card */}
+                <div className="recipe-footer-card">
+                    <div className="footer-card-content">
+                        <div className="footer-section">
+                            <ChefHat className="footer-icon" />
+                            <div className="footer-text">
+                                <h4 className="footer-title">Besoin d'aide ?</h4>
+                                <p className="footer-desc">Consultez nos conseils de préparation et astuces culinaires</p>
+                            </div>
+                        </div>
+                        <div className="footer-section">
+                            <Heart className="footer-icon" />
+                            <div className="footer-text">
+                                <h4 className="footer-title">Vous avez aimé ?</h4>
+                                <p className="footer-desc">Laissez un avis pour aider d'autres cuisiniers</p>
+                            </div>
+                        </div>
+                        <div className="footer-section">
+                            <Share2 className="footer-icon" />
+                            <div className="footer-text">
+                                <h4 className="footer-title">Partagez</h4>
+                                <p className="footer-desc">Faites découvrir cette recette à vos amis</p>
                             </div>
                         </div>
                     </div>

@@ -1,11 +1,22 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import {
-    Clock, Star, Users, ChefHat, Heart, Search,
-    Sparkles, ArrowRight, Utensils, Flame, SlidersHorizontal, X, ChevronLeft, ChevronRight
+    ArrowRight,
+    Calendar,
+    ChefHat,
+    ChevronLeft, ChevronRight,
+    Clock,
+    Flame,
+    Heart, Search,
+    SlidersHorizontal,
+    Sparkles,
+    Star, Users,
+    Utensils,
+    X
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
 import recipesService from '../../services/api/recipe.service';
-import feedbackService from '../../services/api/feedback.service';
+import { normalizeImageUrl } from '../../utils/imageUrlHelper';
 import { RECIPE_PLACEHOLDER_URL } from '../../utils/RecipePlaceholder';
 import './SuggestionsPage.css';
 
@@ -18,6 +29,8 @@ const DIFFICULTY_COLORS = {
 const ITEMS_PER_PAGE = 12;
 
 export default function SuggestionsPage() {
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'ADMIN';
     const [recipes, setRecipes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
@@ -47,24 +60,38 @@ export default function SuggestionsPage() {
                 const recipesWithRatings = await Promise.all(
                     data.map(async (recipe) => {
                         try {
-                            let note = recipe.noteMoyenne || 0;
-                            let nombreAvis = recipe.nombreFeedbacks || 0;
+                            // Enrichir avec feedbacks pour avoir la vraie moyenne
+                            const enriched = await recipesService.enrichWithFeedbacks(recipe);
+                            
+                            let note = enriched.note || 0;
+                            let nombreAvis = enriched.nombreAvis || 0;
 
-                            if (!note || note === 0) {
-                                try {
-                                    const ratingData = await feedbackService.getAverageRatingByRecetteId(recipe.id);
-                                    note = ratingData?.moyenneNote || 0;
-                                    nombreAvis = ratingData?.nombreAvis || 0;
-                                } catch (ratingError) {
-                                    console.log(`Pas de note pour recette ${recipe.id}`);
+                            // Choisir la meilleure image disponible (directUrl > stream > presigned > fallback)
+                            let imageUrl = recipe.imageUrl ? normalizeImageUrl(recipe.imageUrl) : null;
+                            console.log('[Suggestions] Base imageUrl', recipe.id, recipe.imageUrl);
+                            try {
+                                const imgs = await recipesService.getImages(recipe.id);
+                                if (imgs && imgs.length > 0) {
+                                    const best = imgs[0].directUrl || imgs[0].urlStream || imgs[0].urlTelechargement || imgs[0].url;
+                                    if (best) {
+                                        imageUrl = normalizeImageUrl(best);
+                                        console.log('[Suggestions] Using images[0]', recipe.id, imageUrl);
+                                    }
                                 }
+                            } catch (e) {
+                                console.warn('[Suggestions] getImages failed', recipe.id, e);
+                            }
+
+                            if (!imageUrl) {
+                                imageUrl = RECIPE_PLACEHOLDER_URL;
+                                console.warn('[Suggestions] Fallback placeholder', recipe.id);
                             }
 
                             return {
                                 id: recipe.id,
                                 title: recipe.titre,
                                 description: recipe.description || 'Délicieuse recette à découvrir !',
-                                image: recipe.imageUrl || RECIPE_PLACEHOLDER_URL,
+                                image: imageUrl || RECIPE_PLACEHOLDER_URL,
                                 cookTime: recipe.tempsTotal || 0,
                                 cookTimeDisplay: recipe.tempsTotal ? `${recipe.tempsTotal} min` : 'N/A',
                                 difficulty: recipe.difficulte || 'FACILE',
@@ -75,7 +102,9 @@ export default function SuggestionsPage() {
                                 calories: recipe.kcal || 0,
                                 servings: 4,
                                 categorie: recipe.categorie,
-                                dateCreation: recipe.dateCreation
+                                dateCreation: recipe.dateCreation,
+                                statut: recipe.statut,
+                                actif: recipe.actif
                             };
                         } catch (err) {
                             console.error(`Erreur pour recette ${recipe.id}:`, err);
@@ -84,7 +113,10 @@ export default function SuggestionsPage() {
                     })
                 );
 
-                setRecipes(recipesWithRatings.filter(r => r !== null));
+                const validRecipes = recipesWithRatings.filter(r => r !== null);
+                // Filtrer pour n'afficher QUE les recettes VALIDEES; afficher aussi celles sans flag actif (true par défaut)
+                const filteredByStatus = validRecipes.filter(r => r.statut === 'VALIDEE' && r.actif !== false);
+                setRecipes(filteredByStatus);
             } catch (err) {
                 console.error('Erreur chargement recettes:', err);
             } finally {
@@ -367,7 +399,7 @@ export default function SuggestionsPage() {
                                 <div key={recipe.id} className="recipe-card">
                                     <div className="recipe-image-wrapper">
                                         <img
-                                            src={recipe.image}
+                                            src={recipe.image || RECIPE_PLACEHOLDER_URL}
                                             alt={recipe.title}
                                             className="recipe-image"
                                             onError={(e) => {
@@ -379,6 +411,11 @@ export default function SuggestionsPage() {
                                             <span className={`difficulty-badge ${DIFFICULTY_COLORS[recipe.difficulty]}`}>
                                                 {recipe.difficulty}
                                             </span>
+                                            {isAdmin && recipe.statut === 'EN_ATTENTE' && (
+                                                <span className="status-badge status-pending">
+                                                    EN ATTENTE
+                                                </span>
+                                            )}
                                             <button
                                                 className="btn-favorite"
                                                 onClick={() => toggleFavorite(recipe.id)}
@@ -409,9 +446,11 @@ export default function SuggestionsPage() {
                                             <div className="recipe-rating">
                                                 <Star className="star-icon star-filled" />
                                                 <span className="rating-value">
-                                                    {recipe.rating > 0 ? recipe.rating.toFixed(1) : 'N/A'}
+                                                    {recipe.rating > 0 ? recipe.rating.toFixed(1) : '-'}
                                                 </span>
-                                                <span className="rating-count">({recipe.reviews})</span>
+                                                <span className="rating-count">
+                                                    {recipe.reviews > 0 ? `(${recipe.reviews})` : '(Aucun avis)'}
+                                                </span>
                                             </div>
                                             {recipe.calories > 0 && (
                                                 <div className="recipe-calories">
@@ -508,21 +547,36 @@ export default function SuggestionsPage() {
                     </div>
                 )}
 
-                {/* CTA Section */}
-                <div className="cta-section">
-                    <h2 className="cta-title">Pas encore trouvé votre bonheur ?</h2>
-                    <p className="cta-description">
-                        Ajoutez plus d'ingrédients pour obtenir des suggestions encore plus personnalisées,
-                        ou explorez notre planificateur de repas.
-                    </p>
-                    <div className="cta-buttons">
-                        <Link to="/ingredients" className="btn btn-primary">
-                            <ChefHat className="icon-sm" />
-                            Ajouter des ingrédients
-                        </Link>
-                        <Link to="/planificateur" className="btn btn-outline">
-                            Planifier mes repas
-                        </Link>
+                {/* CTA Section - Design moderne */}
+                <div className="cta-section-modern">
+                    <div className="cta-decoration-circles">
+                        <div className="cta-circle cta-circle-1"></div>
+                        <div className="cta-circle cta-circle-2"></div>
+                        <div className="cta-circle cta-circle-3"></div>
+                    </div>
+                    
+                    <div className="cta-content">
+                        <div className="cta-icon-badge">
+                            <Sparkles className="icon-sparkles" />
+                        </div>
+                        
+                        <h2 className="cta-title-modern">Pas encore trouvé votre bonheur ?</h2>
+                        <p className="cta-description-modern">
+                            Ajoutez plus d'ingrédients pour obtenir des suggestions encore plus personnalisées,
+                            ou explorez notre planificateur de repas hebdomadaire.
+                        </p>
+                        
+                        <div className="cta-buttons-modern">
+                            <Link to="/ingredients" className="cta-btn cta-btn-primary">
+                                <ChefHat className="icon-sm" />
+                                <span>Ajouter des ingrédients</span>
+                                <ArrowRight className="icon-sm cta-arrow" />
+                            </Link>
+                            <Link to="/planificateur" className="cta-btn cta-btn-secondary">
+                                <Calendar className="icon-sm" />
+                                <span>Planifier mes repas</span>
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -303,7 +303,7 @@ export default function AIRecommendationsPage() {
 
                                         <div className="recipe-actions">
                                             <Link
-                                                to={`/recipe/${recipe.id}`}
+                                                to={`/recette/${recipe.id}`}
                                                 className="btn btn-primary btn-full"
                                             >
                                                 Voir la recette complète
