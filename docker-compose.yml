@@ -227,7 +227,10 @@ services:
     environment:
       # Ollama Configuration
       OLLAMA_BASE_URL: http://ollama:11434
-      
+      OLLAMA_MODEL: tinyllama:latest
+
+    # ✅ OBLIGATOIRE
+      PERSISTENCE_BASE_URL: http://ms-persistance:8090
       # Server Configuration
       SERVER_PORT: 8095
     ports:
