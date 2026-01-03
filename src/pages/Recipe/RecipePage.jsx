@@ -630,6 +630,29 @@ export default function RecipePage() {
     const totalSteps = recipe?.steps?.length || 0;
     const progress = totalSteps > 0 ? (completedSteps.length / totalSteps) * 100 : 0;
 
+    // Dans src/pages/Recipe/RecipePage.jsx, avant le bloc "return ("
+
+    const handleShare = async () => {
+        const shareData = {
+            title: recipe.title || recipe.titre,
+            text: `Découvrez cette délicieuse recette sur SmartDish : ${recipe.title || recipe.titre}`,
+            url: window.location.href,
+        };
+
+        try {
+            if (navigator.share) {
+                // Utilise l'API de partage native (mobile/navigateurs modernes)
+                await navigator.share(shareData);
+            } else {
+                // Fallback : Copie le lien dans le presse-papier
+                await navigator.clipboard.writeText(shareData.url);
+                alert('Lien de la recette copié dans le presse-papier !');
+            }
+        } catch (err) {
+            console.error('Erreur lors du partage :', err);
+        }
+    };
+
     return (
         <div className="recipe-page">
             <div className="recipe-container">
@@ -651,8 +674,6 @@ export default function RecipePage() {
                                 e.target.src = RECIPE_PLACEHOLDER_URL;
                             }}
                         />
-
-                        {/* Bouton gestion images (Admin uniquement) */}
                         {isAdmin && (
                             <button
                                 className="btn-manage-images"
@@ -665,44 +686,17 @@ export default function RecipePage() {
                     </div>
 
                     <div className="recipe-header-content">
-                        <div className="recipe-tags">
-                            {recipe.tags?.map((tag, index) => (
-                                <span key={index} className="tag tag-secondary">
-                                    {tag}
-                                </span>
-                            ))}
-                        </div>
-
-                        <h1 className="recipe-main-title">{recipe.title || recipe.titre || 'Recette sans titre'}</h1>
-                        <p className="recipe-description">{recipe.description}</p>
-
-                        {/* Recipe Stats */}
-                        <div className="recipe-stats-grid">
-                            <div className="stat-box">
-                                <Clock className="stat-icon" />
-                                <div className="stat-label">Temps total</div>
-                                <div className="stat-value">{recipe.cookTime}</div>
+                        {/* Section Titre et Tags regroupés */}
+                        <div className="recipe-title-section">
+                            <div className="recipe-tags">
+                                {recipe.tags?.map((tag, index) => (
+                                    <span key={index} className="tag tag-secondary">{tag}</span>
+                                ))}
                             </div>
-                            <div className="stat-box">
-                                <Users className="stat-icon" />
-                                <div className="stat-label">Portions</div>
-                                <div className="stat-value">{recipe.servings}</div>
-                            </div>
-                            <div className="stat-box">
-                                <ChefHat className="stat-icon" />
-                                <div className="stat-label">Difficulté</div>
-                                <div className="stat-value">{recipe.difficulty}</div>
-                            </div>
-                            <div className="stat-box">
-                                <Flame className="stat-icon" />
-                                <div className="stat-label">Calories</div>
-                                <div className="stat-value">{recipe.calories || '-'}</div>
-                            </div>
-                        </div>
-
-                        {/* Rating and Actions */}
-                        <div className="recipe-actions-row">
-                            <div className="recipe-rating">
+                            <h1 className="recipe-main-title">{recipe.title || recipe.titre || 'Recette sans titre'}</h1>
+                            
+                            {/* Feedback intégré directement sous le titre pour plus de modernité */}
+                            <div className="recipe-rating-inline">
                                 <Star className="star-icon star-filled" />
                                 <span className="rating-value">
                                     {recipe.rating > 0 ? recipe.rating.toFixed(1) : '-'}
@@ -711,40 +705,63 @@ export default function RecipePage() {
                                     {recipe.reviews > 0 ? `(${recipe.reviews} avis)` : '(Aucun avis)'}
                                 </span>
                             </div>
+                        </div>
 
-                            <div className="action-buttons">
-                                <button
-                                    className="btn btn-outline btn-sm"
-                                    onClick={() => setIsFavorite(!isFavorite)}
-                                >
-                                    <Heart className={`icon-sm ${isFavorite ? 'heart-filled' : ''}`} />
-                                    {isFavorite ? 'Retiré' : 'Favoris'}
-                                </button>
-                                <button 
-                                    className="btn btn-outline btn-sm"
-                                    onClick={() => {
-                                        const shareText = `Découvrez cette délicieuse recette: ${recipe.titre}`;
-                                        const shareUrl = window.location.href;
-                                        
-                                        if (navigator.share) {
-                                            navigator.share({
-                                                title: recipe.titre,
-                                                text: shareText,
-                                                url: shareUrl
-                                            }).catch(err => console.log('Erreur partage:', err));
-                                        } else {
-                                            // Fallback: copier dans le presse-papier
-                                            navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-                                            alert('Lien copié dans le presse-papier !');
-                                        }
-                                    }}
-                                >
-                                    <Share2 className="icon-sm" />
-                                    Partager
-                                </button>
+                        {/* Stats Grid avec un design plus aéré */}
+                        <div className="recipe-stats-grid">
+                            <div className="stat-box">
+                                <Clock className="stat-icon" />
+                                <div>
+                                    <div className="stat-value">{recipe.cookTime}</div>
+                                    <div className="stat-label">Préparation</div>
+                                </div>
+                            </div>
+                            <div className="stat-box">
+                                <Users className="stat-icon" />
+                                <div>
+                                    <div className="stat-value">{recipe.servings}</div>
+                                    <div className="stat-label">Portions</div>
+                                </div>
+                            </div>
+                            <div className="stat-box">
+                                <ChefHat className="stat-icon" />
+                                <div>
+                                    <div className="stat-value text-capitalize">{recipe.difficulty?.toLowerCase()}</div>
+                                    <div className="stat-label">Difficulté</div>
+                                </div>
+                            </div>
+                            <div className="stat-box">
+                                <Flame className="stat-icon" />
+                                <div>
+                                    <div className="stat-value">{recipe.calories || '-'}</div>
+                                    <div className="stat-label">Kcal</div>
+                                </div>
                             </div>
                         </div>
+
+                        {/* Actions principales bien visibles */}
+                        <div className="recipe-actions-row">
+                            <button
+                                className={`btn btn-favorite ${isFavorite ? 'active' : ''}`}
+                                onClick={() => setIsFavorite(!isFavorite)}
+                            >
+                                <Heart className={`icon-sm ${isFavorite ? 'heart-filled' : ''}`} />
+                                {isFavorite ? 'Favori' : 'Ajouter aux favoris'}
+                            </button>
+                            <button className="btn btn-share" onClick={handleShare}>
+                                <Share2 className="icon-sm" />
+                                Partager
+                            </button>
+                        </div>
                     </div>
+                </div>
+
+                {/* Section description élargie sous le header */}
+                <div className="recipe-description-container">
+                    <h2 className="section-subtitle">À propos de cette recette</h2>
+                    <p className="recipe-description">
+                        {recipe.description || "Découvrez les saveurs uniques de cette préparation artisanale."}
+                    </p>
                 </div>
 
                 {/* Section Commentaires et Feedbacks - Après les boutons Favoris/Partager */}
