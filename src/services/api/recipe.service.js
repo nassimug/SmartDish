@@ -344,9 +344,9 @@ class RecipesService {
             const processed = (response.data || []).map(image => {
                 // Construire l'URL de streaming via ms-persistance (authentifié, pas de CORS, toujours accessible)
                 const streamPath = image.urlStream || `/recettes/${recetteId}/fichiers/images/${image.id}/stream`;
-                const directUrl = normalizeStreamUrl(image.directUrl);
-                const urlStream = normalizeStreamUrl(streamPath);
-                const urlTelechargement = normalizeStreamUrl(image.urlTelechargement);
+                const directUrl = normalizeImageUrl(normalizeStreamUrl(image.directUrl));
+                const urlStream = normalizeImageUrl(normalizeStreamUrl(streamPath));
+                const urlTelechargement = normalizeImageUrl(normalizeStreamUrl(image.urlTelechargement));
                 const fallback = image.url || image.cheminFichier;
                 const displayUrl = directUrl || urlStream || urlTelechargement || normalizeStreamUrl(fallback);
                 
@@ -452,9 +452,8 @@ class RecipesService {
      */
     async getAllAliments() {
         try {
-            // TODO: Corriger l'endpoint - actuellement /api/persistance/aliments retourne 404
-            // Essayer d'autres endpoints: /api/aliments, /api/persistance/alimentss, etc.
-            const response = await axios.get(`/api/aliments`, {
+            // Appeler directement ms-persistance (docker-compose expose l'API sous /api/persistance)
+            const response = await axios.get(`${PERSISTENCE_URL}/aliments`, {
                 headers: this.getAuthHeader()
             });
             return response.data;
@@ -467,19 +466,26 @@ class RecipesService {
      * Générer des recommandations IA basées sur des ingrédients
      */
     async generateRecommendations(ingredientNames, topK = 3) {
+        // Hoist variables for use in catch fallback
+        let allAliments = [];
+        let user = null;
+        let aliments_exclus_ids = [];
+        let feedbacks_user = [];
+        let global_averages = {};
+        let ingredientIds = [];
         try {
             // 1. Récupérer tous les aliments pour mapper noms -> IDs
-            const allAliments = await this.getAllAliments();
+            allAliments = await this.getAllAliments();
             // 3. Appeler MS-Recommandation
-            const user = JSON.parse(localStorage.getItem('user'));
+            user = JSON.parse(localStorage.getItem('user'));
             if (!user || !user.id) {
                 throw new Error('Utilisateur non connecté');
             }
-const aliments_exclus_ids = await this.getUserExclusions(user.id);
-const feedbacks_user = await this.getUserFeedbacks(user.id);
-const global_averages = {};
-// 2. Convertir les noms d'ingrédients en IDs avec une recherche flexible
-            const ingredientIds = ingredientNames.map(name => {
+            aliments_exclus_ids = await this.getUserExclusions(user.id);
+            feedbacks_user = await this.getUserFeedbacks(user.id);
+            global_averages = {};
+            // 2. Convertir les noms d'ingrédients en IDs avec une recherche flexible
+            ingredientIds = ingredientNames.map(name => {
                 // Recherche insensible à la casse et au singulier/pluriel
                 const normalizedName = name.toLowerCase().trim();
                 
@@ -534,6 +540,42 @@ const global_averages = {};
 
             return response.data;
         } catch (error) {
+            // Si aucune recette candidate (422), tenter un fallback plus permissif
+            if (error?.response?.status === 422 &&
+                (error.response.data?.detail?.includes('Aucune recette candidate') ||
+                 error.response.data?.detail?.includes('aucune recette'))) {
+                console.warn('[RecipeService] Fallback recommandations: retrait des exclusions et élargissement du pool');
+                try {
+                    const retry = await axios.post(`${RECOMMENDATION_URL}/recommend/suggestions`, {
+                        user_id: user.id.toString(),
+                        ingredients_inclus: ingredientIds,
+                        top_k: topK,
+                        limit_candidates: 500,
+                        aliments_exclus_ids: [], // enlever les exclusions pour élargir
+                        feedbacks_user,
+                        global_averages
+                    }, {
+                        headers: this.getAuthHeader()
+                    });
+                    return retry.data;
+                } catch (retryErr) {
+                    console.warn('[RecipeService] Fallback 1 échoué, tentative de suggestions populaires/récentes');
+                    try {
+                        const popular = await this.getPopularRecettes(topK * 2);
+                        const list = Array.isArray(popular) && popular.length > 0
+                            ? popular
+                            : await this.getRecentRecettes(topK * 2);
+
+                        if (Array.isArray(list) && list.length > 0) {
+                            return { recommended_recipe_ids: list.map(r => r.id).slice(0, topK) };
+                        }
+                    } catch (altErr) {
+                        console.warn('[RecipeService] Fallback 2 échoué:', altErr?.message);
+                    }
+                    // Dernier recours: message utilisateur
+                    throw new Error(error.response.data?.detail || 'Aucune recette candidate après filtrage. Ajoutez des ingrédients plus courants ou réduisez les exclusions.');
+                }
+            }
             this.handleError(error);
         }
     }

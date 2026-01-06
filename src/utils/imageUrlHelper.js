@@ -23,22 +23,19 @@ export const normalizeImageUrl = (imageUrl) => {
     // Si c'est déjà une URL externe complète (pas localhost, pas minio interne), la retourner telle quelle
     // Cela permet d'afficher les images d'autres utilisateurs/serveurs
     if (/^https?:\/\//.test(imageUrl)) {
-        // URLs internes MinIO à normaliser
-        if (imageUrl.includes('minio:9000') || imageUrl.includes('localhost:9000')) {
+        // URLs internes MinIO à normaliser (remplacer minio:9000 ou localhost par l'URL publique)
+        if (imageUrl.includes('minio:9000') || imageUrl.includes('localhost:9000') || imageUrl.includes('localhost:9002')) {
+            // Utiliser l'URL publique MinIO depuis les variables d'environnement
+            const minioPublicUrl = publicBase.replace(/\/$/, '');
             let url = imageUrl
-                .replace(/^https?:\/\/minio:9000\//, publicBase)
-                .replace(/^https?:\/\/localhost:9000\//, publicBase);
+                .replace(/https?:\/\/minio:9000\//g, `${minioPublicUrl}/`)
+                .replace(/https?:\/\/localhost:9000\//g, `${minioPublicUrl}/`)
+                .replace(/https?:\/\/localhost:9002\//g, `${minioPublicUrl}/`);
+            
+            // Nettoyer les double-slashes dans le chemin
+            url = url.replace(/([^:])(\/\/+)/g, '$1/');
             
             // Remplace /recettes/ par /recettes-bucket/ si nécessaire
-            if (!/\/recettes-bucket\//.test(url) && /\/recettes\//.test(url)) {
-                url = url.replace(/\/recettes\//, '/recettes-bucket/');
-            }
-            return url;
-        }
-        
-        // URL localhost:9002 (notre MinIO public)
-        if (imageUrl.includes('localhost:9002')) {
-            let url = imageUrl;
             if (!/\/recettes-bucket\//.test(url) && /\/recettes\//.test(url)) {
                 url = url.replace(/\/recettes\//, '/recettes-bucket/');
             }
