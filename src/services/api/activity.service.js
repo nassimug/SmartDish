@@ -3,6 +3,8 @@ import axios from 'axios';
 const PERSISTANCE_API_URL = 'http://localhost:8090/api/persistance/utilisateurs';
 
 class ActivityService {
+    constructor() {}
+    
     // Helper pour obtenir le token
     getAuthHeader() {
         const token = localStorage.getItem('token');
@@ -38,6 +40,7 @@ class ActivityService {
                 `${PERSISTANCE_API_URL}/${utilisateurId}/activite`,
                 { headers: this.getAuthHeader() }
             );
+            
             return response.data;
         } catch (error) {
             this.handleError(error);
@@ -54,6 +57,7 @@ class ActivityService {
                 `${PERSISTANCE_API_URL}/${utilisateurId}/activite/recent`,
                 { headers: this.getAuthHeader() }
             );
+            
             return response.data;
         } catch (error) {
             this.handleError(error);

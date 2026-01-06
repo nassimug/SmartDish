@@ -54,7 +54,8 @@ export default function SuggestionsPage() {
             try {
                 setLoading(true);
 
-                const data = await recipesService.getAllRecettes();
+                // Appel direct ms-persistance avec fallback pour éviter 503 de ms-recette
+                const data = await recipesService.getAllRecipesWithCache();
 
                 // Enrichir avec les notes
                 const recipesWithRatings = await Promise.all(

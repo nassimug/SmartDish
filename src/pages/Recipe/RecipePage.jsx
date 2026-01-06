@@ -57,7 +57,7 @@ export default function RecipePage() {
     // Vérifier si l'utilisateur est admin
     const isAdmin = user?.role === 'ADMIN';
 
-    // Charger les images (admin uniquement)
+    // Charger les images (tous utilisateurs)
     const loadImages = useCallback(async () => {
         try {
             const data = await recipesService.getImages(recipeId);
@@ -66,7 +66,17 @@ export default function RecipePage() {
                 const finalUrl = display ? normalizeImageUrl(display) : display;
                 return { ...img, displayUrl: finalUrl };
             });
+            console.log('Images stream chargées:', normalized);
             setImages(normalized);
+
+            // Si on a au moins une image stream, l'utiliser comme image principale affichée
+            if (normalized.length > 0 && normalized[0].displayUrl) {
+                setRecipe((prev) => prev ? {
+                    ...prev,
+                    image: normalized[0].displayUrl,
+                    imageUrl: normalized[0].displayUrl
+                } : prev);
+            }
         } catch (err) {
             console.error('Erreur chargement images:', err);
         }
@@ -91,18 +101,20 @@ export default function RecipePage() {
                         return feedback;
                     }
 
-                    // Sinon, essayer de récupérer les infos depuis ms-utilisateur
+                    // Sinon, essayer de récupérer les infos depuis ms-persistance (qui a accès à la DB)
                     if (feedback.utilisateurId) {
                         try {
-                            const response = await fetch(`http://localhost:8092/api/utilisateurs/${feedback.utilisateurId}`, {
+                            const token = localStorage.getItem('token');
+                            const response = await fetch(`http://localhost:8090/api/persistance/utilisateurs/${feedback.utilisateurId}`, {
                                 headers: {
-                                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                                    'Authorization': `Bearer ${token}`,
+                                    'Content-Type': 'application/json'
                                 }
                             });
 
                             if (response.ok) {
                                 const userData = await response.json();
-                                console.log('User data récupéré depuis ms-utilisateur:', userData);
+                                console.log('User data récupéré depuis ms-persistance:', userData);
                                 return {
                                     ...feedback,
                                     utilisateur: {
@@ -111,6 +123,8 @@ export default function RecipePage() {
                                         nom: userData.nom || 'Anonyme'
                                     }
                                 };
+                            } else {
+                                console.warn(`Réponse ${response.status} pour utilisateur ${feedback.utilisateurId}`);
                             }
                         } catch (error) {
                             console.error(`Erreur récupération utilisateur ${feedback.utilisateurId}:`, error);
@@ -181,8 +195,9 @@ export default function RecipePage() {
                     title: data.titre,
                     titre: data.titre,
                     description: data.description || 'Délicieuse recette à découvrir !',
-                    image: data.imageUrl ? normalizeImageUrl(data.imageUrl) : data.imageUrl,
-                    imageUrl: data.imageUrl ? normalizeImageUrl(data.imageUrl) : data.imageUrl,
+                    // On évite d'utiliser l'URL MinIO retournée (403). On mettra à jour après getImages().
+                    image: null,
+                    imageUrl: null,
                     cookTime: data.tempsTotal ? `${data.tempsTotal} min` : 'N/A',
                     tempsPreparation: data.tempsTotal,
                     prepTime: data.tempsTotal ? `${data.tempsTotal} min` : 'N/A',
@@ -252,10 +267,8 @@ export default function RecipePage() {
 
                 setRecipe(mappedRecipe);
 
-                // Si admin, charger aussi les images
-                if (isAdmin) {
-                    loadImages();
-                }
+                // Charger aussi les images pour tous (pour avoir l'URL de streaming)
+                loadImages();
 
                 // Charger les feedbacks
                 loadFeedbacks();
@@ -268,12 +281,10 @@ export default function RecipePage() {
             }
         };
 
-        if (recipeId) {
-            loadRecipe();
-            if (isAdmin) {
+            if (recipeId) {
+                loadRecipe();
                 loadImages();
             }
-        }
     }, [recipeId, isAdmin, loadImages]);
 
     // Recalculer la note moyenne quand les feedbacks changent
@@ -324,11 +335,18 @@ export default function RecipePage() {
         try {
             setUploadingImage(true);
             const result = await recipesService.uploadImage(recipeId, file);
+            console.log('✅ Upload réussi, résultat:', result);
+            console.log('  - directUrl:', result.directUrl);
+            console.log('  - urlStream:', result.urlStream);
+            console.log('  - urlTelechargement:', result.urlTelechargement);
+            
             await loadImages();
+            console.log('📸 Images rechargées, total:', images.length);
 
             if (!recipe.image || recipe.image.includes('placeholder')) {
                 const chosen = result.directUrl || result.urlStream || result.urlTelechargement || result.url || result.cheminFichier;
                 const imageUrl = chosen ? normalizeImageUrl(chosen) : chosen;
+                console.log('🎯 URL choisie pour image principale:', imageUrl);
                 if (imageUrl) {
                     setRecipe({ ...recipe, image: imageUrl, imageUrl: imageUrl });
 
@@ -336,6 +354,7 @@ export default function RecipePage() {
                         await recipesService.updateRecette(recipeId, {
                             imageUrl: imageUrl
                         });
+                        console.log('✅ Image principale mise à jour');
                     } catch (err) {
                         console.error('Erreur mise à jour image principale:', err);
                     }
@@ -630,6 +649,29 @@ export default function RecipePage() {
     const totalSteps = recipe?.steps?.length || 0;
     const progress = totalSteps > 0 ? (completedSteps.length / totalSteps) * 100 : 0;
 
+    // Dans src/pages/Recipe/RecipePage.jsx, avant le bloc "return ("
+
+    const handleShare = async () => {
+        const shareData = {
+            title: recipe.title || recipe.titre,
+            text: `Découvrez cette délicieuse recette sur SmartDish : ${recipe.title || recipe.titre}`,
+            url: window.location.href,
+        };
+
+        try {
+            if (navigator.share) {
+                // Utilise l'API de partage native (mobile/navigateurs modernes)
+                await navigator.share(shareData);
+            } else {
+                // Fallback : Copie le lien dans le presse-papier
+                await navigator.clipboard.writeText(shareData.url);
+                alert('Lien de la recette copié dans le presse-papier !');
+            }
+        } catch (err) {
+            console.error('Erreur lors du partage :', err);
+        }
+    };
+
     return (
         <div className="recipe-page">
             <div className="recipe-container">
@@ -643,7 +685,7 @@ export default function RecipePage() {
                 <div className="recipe-header-grid">
                     <div className="recipe-image-container">
                         <img
-                            src={recipe.image || recipe.imageUrl || RECIPE_PLACEHOLDER_URL}
+                            src={(images[0]?.displayUrl) || recipe.image || recipe.imageUrl || RECIPE_PLACEHOLDER_URL}
                             alt={recipe.title || recipe.titre}
                             className="recipe-main-image"
                             onError={(e) => {
@@ -651,8 +693,6 @@ export default function RecipePage() {
                                 e.target.src = RECIPE_PLACEHOLDER_URL;
                             }}
                         />
-
-                        {/* Bouton gestion images (Admin uniquement) */}
                         {isAdmin && (
                             <button
                                 className="btn-manage-images"
@@ -665,44 +705,17 @@ export default function RecipePage() {
                     </div>
 
                     <div className="recipe-header-content">
-                        <div className="recipe-tags">
-                            {recipe.tags?.map((tag, index) => (
-                                <span key={index} className="tag tag-secondary">
-                                    {tag}
-                                </span>
-                            ))}
-                        </div>
-
-                        <h1 className="recipe-main-title">{recipe.title || recipe.titre || 'Recette sans titre'}</h1>
-                        <p className="recipe-description">{recipe.description}</p>
-
-                        {/* Recipe Stats */}
-                        <div className="recipe-stats-grid">
-                            <div className="stat-box">
-                                <Clock className="stat-icon" />
-                                <div className="stat-label">Temps total</div>
-                                <div className="stat-value">{recipe.cookTime}</div>
+                        {/* Section Titre et Tags regroupés */}
+                        <div className="recipe-title-section">
+                            <div className="recipe-tags">
+                                {recipe.tags?.map((tag, index) => (
+                                    <span key={index} className="tag tag-secondary">{tag}</span>
+                                ))}
                             </div>
-                            <div className="stat-box">
-                                <Users className="stat-icon" />
-                                <div className="stat-label">Portions</div>
-                                <div className="stat-value">{recipe.servings}</div>
-                            </div>
-                            <div className="stat-box">
-                                <ChefHat className="stat-icon" />
-                                <div className="stat-label">Difficulté</div>
-                                <div className="stat-value">{recipe.difficulty}</div>
-                            </div>
-                            <div className="stat-box">
-                                <Flame className="stat-icon" />
-                                <div className="stat-label">Calories</div>
-                                <div className="stat-value">{recipe.calories || '-'}</div>
-                            </div>
-                        </div>
-
-                        {/* Rating and Actions */}
-                        <div className="recipe-actions-row">
-                            <div className="recipe-rating">
+                            <h1 className="recipe-main-title">{recipe.title || recipe.titre || 'Recette sans titre'}</h1>
+                            
+                            {/* Feedback intégré directement sous le titre pour plus de modernité */}
+                            <div className="recipe-rating-inline">
                                 <Star className="star-icon star-filled" />
                                 <span className="rating-value">
                                     {recipe.rating > 0 ? recipe.rating.toFixed(1) : '-'}
@@ -711,40 +724,63 @@ export default function RecipePage() {
                                     {recipe.reviews > 0 ? `(${recipe.reviews} avis)` : '(Aucun avis)'}
                                 </span>
                             </div>
+                        </div>
 
-                            <div className="action-buttons">
-                                <button
-                                    className="btn btn-outline btn-sm"
-                                    onClick={() => setIsFavorite(!isFavorite)}
-                                >
-                                    <Heart className={`icon-sm ${isFavorite ? 'heart-filled' : ''}`} />
-                                    {isFavorite ? 'Retiré' : 'Favoris'}
-                                </button>
-                                <button 
-                                    className="btn btn-outline btn-sm"
-                                    onClick={() => {
-                                        const shareText = `Découvrez cette délicieuse recette: ${recipe.titre}`;
-                                        const shareUrl = window.location.href;
-                                        
-                                        if (navigator.share) {
-                                            navigator.share({
-                                                title: recipe.titre,
-                                                text: shareText,
-                                                url: shareUrl
-                                            }).catch(err => console.log('Erreur partage:', err));
-                                        } else {
-                                            // Fallback: copier dans le presse-papier
-                                            navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-                                            alert('Lien copié dans le presse-papier !');
-                                        }
-                                    }}
-                                >
-                                    <Share2 className="icon-sm" />
-                                    Partager
-                                </button>
+                        {/* Stats Grid avec un design plus aéré */}
+                        <div className="recipe-stats-grid">
+                            <div className="stat-box">
+                                <Clock className="stat-icon" />
+                                <div>
+                                    <div className="stat-value">{recipe.cookTime}</div>
+                                    <div className="stat-label">Préparation</div>
+                                </div>
+                            </div>
+                            <div className="stat-box">
+                                <Users className="stat-icon" />
+                                <div>
+                                    <div className="stat-value">{recipe.servings}</div>
+                                    <div className="stat-label">Portions</div>
+                                </div>
+                            </div>
+                            <div className="stat-box">
+                                <ChefHat className="stat-icon" />
+                                <div>
+                                    <div className="stat-value text-capitalize">{recipe.difficulty?.toLowerCase()}</div>
+                                    <div className="stat-label">Difficulté</div>
+                                </div>
+                            </div>
+                            <div className="stat-box">
+                                <Flame className="stat-icon" />
+                                <div>
+                                    <div className="stat-value">{recipe.calories || '-'}</div>
+                                    <div className="stat-label">Kcal</div>
+                                </div>
                             </div>
                         </div>
+
+                        {/* Actions principales bien visibles */}
+                        <div className="recipe-actions-row">
+                            <button
+                                className={`btn btn-favorite ${isFavorite ? 'active' : ''}`}
+                                onClick={() => setIsFavorite(!isFavorite)}
+                            >
+                                <Heart className={`icon-sm ${isFavorite ? 'heart-filled' : ''}`} />
+                                {isFavorite ? 'Favori' : 'Ajouter aux favoris'}
+                            </button>
+                            <button className="btn btn-share" onClick={handleShare}>
+                                <Share2 className="icon-sm" />
+                                Partager
+                            </button>
+                        </div>
                     </div>
+                </div>
+
+                {/* Section description élargie sous le header */}
+                <div className="recipe-description-container">
+                    <h2 className="section-subtitle">À propos de cette recette</h2>
+                    <p className="recipe-description">
+                        {recipe.description || "Découvrez les saveurs uniques de cette préparation artisanale."}
+                    </p>
                 </div>
 
                 {/* Section Commentaires et Feedbacks - Après les boutons Favoris/Partager */}
