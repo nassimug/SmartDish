@@ -5,6 +5,8 @@ import feedbackService from './feedback.service';
 const API_URL = process.env.REACT_APP_RECIPE_SERVICE_URL || 'http://localhost:8093/api/recettes';
 const PERSISTENCE_URL = process.env.REACT_APP_PERSISTENCE_SERVICE_URL || 'http://localhost:8090/api/persistance';
 const RECOMMENDATION_URL = process.env.REACT_APP_RECOMMENDATION_SERVICE_URL || 'http://localhost:8095/api';
+const USER_URL = process.env.REACT_APP_USER_SERVICE_URL || 'http://localhost:8092/api/utilisateurs';
+const FEEDBACK_URL = process.env.REACT_APP_FEEDBACK_SERVICE_URL || 'http://localhost:8091/api/feedbacks';
 
 class RecipesService {
     constructor() {
@@ -517,7 +519,14 @@ class RecipesService {
         try {
             // 1. Récupérer tous les aliments pour mapper noms -> IDs
             const allAliments = await this.getAllAliments();
-
+            // 3. Appeler MS-Recommandation
+            const user = JSON.parse(localStorage.getItem('user'));
+            if (!user || !user.id) {
+                throw new Error('Utilisateur non connecté');
+            }
+const aliments_exclus_ids = await this.getUserExclusions(user.id);
+const feedbacks_user = await this.getUserFeedbacks(user.id);
+const global_averages = {};
 // 2. Convertir les noms d'ingrédients en IDs avec une recherche flexible
             const ingredientIds = ingredientNames.map(name => {
                 // Recherche insensible à la casse et au singulier/pluriel
@@ -556,20 +565,21 @@ class RecipesService {
                 throw new Error('Aucun ingrédient valide trouvé dans la base de données. Ingrédients disponibles: ' + allAliments.map(a => a.nom).join(', '));
             }
 
-            // 3. Appeler MS-Recommandation
-            const user = JSON.parse(localStorage.getItem('user'));
-            if (!user || !user.id) {
-                throw new Error('Utilisateur non connecté');
-            }
+            
 
             const response = await axios.post(`${RECOMMENDATION_URL}/recommend/suggestions`, {
-                user_id: user.id.toString(),
-                ingredients_inclus: ingredientIds,
-                top_k: topK,
-                limit_candidates: 50
-            }, {
-                headers: this.getAuthHeader()
-            });
+  user_id: user.id.toString(),
+  ingredients_inclus: ingredientIds,
+  top_k: topK,
+  limit_candidates: 200,
+
+  // ✅ ajoutés
+  aliments_exclus_ids,
+  feedbacks_user,
+  global_averages
+}, {
+  headers: this.getAuthHeader()
+});
 
             return response.data;
         } catch (error) {
@@ -780,6 +790,29 @@ class RecipesService {
             };
         }
     }
+
+    async getUserExclusions(userId) {
+  try {
+    const resp = await axios.get(`${USER_URL}/${userId}`, {
+      headers: this.getAuthHeader()
+    });
+    return resp.data?.alimentsExclusIds || [];
+  } catch (error) {
+    console.warn('Impossible de récupérer alimentsExclusIds:', error);
+    return [];
+  }
+}
+async getUserFeedbacks(userId) {
+  try {
+    const resp = await axios.get(`${FEEDBACK_URL}/utilisateur/${userId}`, {
+      headers: this.getAuthHeader()
+    });
+    return Array.isArray(resp.data) ? resp.data : [];
+  } catch (error) {
+    console.warn('Impossible de récupérer feedbacks_user:', error);
+    return [];
+  }
+}
 
     /**
      * Enrichir plusieurs recettes avec leurs moyennes de feedbacks
