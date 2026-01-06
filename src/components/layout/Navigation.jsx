@@ -35,7 +35,12 @@ export function Navigation() {
             console.log('🔢 [Navigation] Notifications non lues:', count);
             setUnreadCount(count);
         } catch (error) {
-            console.error('❌ [Navigation] Erreur chargement notifications:', error);
+            // Silently fail if backend is not ready yet - will retry on next interval
+            if (error.message.includes('Impossible de contacter le serveur')) {
+                console.warn('⚠️ [Navigation] Backend non disponible, réessai automatique dans 60s');
+            } else {
+                console.error('❌ [Navigation] Erreur chargement notifications:', error);
+            }
             setNotifications([]);
             setUnreadCount(0);
         }

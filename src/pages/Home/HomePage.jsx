@@ -17,8 +17,17 @@ export default function HomePage() {
                 setLoading(true);
                 setError(null);
 
-                // Récupérer TOUTES les recettes pour éviter les problèmes de filtrage backend
-                const allRecipes = await recipesService.getAllRecettes();
+                // Récupérer TOUTES les recettes via ms-persistance (fallback ms-recette si nécessaire)
+                const allRecipes = await recipesService.getAllRecipesWithCache();
+                
+                // Vérifier que allRecipes est bien un tableau
+                if (!Array.isArray(allRecipes)) {
+                    console.error('[Home] getAllRecettes n\'a pas retourné un tableau:', allRecipes);
+                    setError('Impossible de charger les recettes');
+                    setTrendingRecipes([]);
+                    return;
+                }
+                
                 // Inclure toutes les recettes VALIDEE, sauf si explicitement actives=false (certaines n'ont pas le flag)
                 const validatedOnly = allRecipes
                     .filter(r => r.statut === 'VALIDEE' && r.actif !== false)

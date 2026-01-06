@@ -10,6 +10,7 @@ import {
     Mail,
     MapPin,
     Phone,
+    RefreshCw,
     Save,
     Settings,
     Sparkles,
@@ -24,6 +25,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import activityService from '../../services/api/activity.service';
 import authService from '../../services/api/auth.service';
+import userPreferencesService from '../../services/userPreferences.service';
 import { RECIPE_PLACEHOLDER_URL } from '../../utils/RecipePlaceholder';
 // Notifications gérées côté backend (pas d'appel direct depuis le frontend)
 import recipesService from '../../services/api/recipe.service';
@@ -89,6 +91,13 @@ export default function AccountPage() {
         }
     }, [user?.id]);
 
+    // Recharger les activités quand on change vers l'onglet "activity"
+    useEffect(() => {
+        if (activeTab === 'activity' && user?.id) {
+            loadRecentActivities();
+        }
+    }, [activeTab, user?.id]);
+
     const loadRecentActivities = async () => {
         if (!user?.id) return;
 
@@ -109,13 +118,16 @@ export default function AccountPage() {
 
     useEffect(() => {
         if (user) {
+            // Charger les préférences locales (bio, telephone, localisation)
+            const preferences = userPreferencesService.getPreferences(user.id);
+            
             setFormData({
                 nom: user.nom || '',
                 prenom: user.prenom || '',
                 email: user.email || '',
-                telephone: user.telephone || '',
-                localisation: user.localisation || '',
-                bio: user.bio || 'Passionnée de cuisine depuis toujours, j\'adore découvrir de nouvelles recettes et partager mes créations culinaires.'
+                telephone: preferences.telephone || user.telephone || '',
+                localisation: preferences.localisation || user.localisation || '',
+                bio: preferences.bio || user.bio || 'Passionnée de cuisine depuis toujours, j\'adore découvrir de nouvelles recettes et partager mes créations culinaires.'
             });
         }
     }, [user]);
@@ -256,22 +268,106 @@ export default function AccountPage() {
     };
 
     const handleSave = async () => {
+        // ⚠️ PROBLÈME BACKEND IDENTIFIÉ ⚠️
+        // Le service ms-utilisateur ne transmet pas correctement l'email à ms-persistance
+        // Erreur backend : ms-persistance retourne "L'email est obligatoire"
+        // Détails dans les logs : docker logs smartdish-ms-utilisateur
+        
+        alert('⚠️ Modification du profil temporairement désactivée\n\n' +
+              'Problème identifié :\n' +
+              '• Le backend ms-utilisateur ne transmet pas correctement les données à ms-persistance\n' +
+              '• ms-persistance retourne : "L\'email est obligatoire"\n\n' +
+              'Solution :\n' +
+              '• Ce problème doit être corrigé dans le code backend Java\n' +
+              '• Fichier concerné : PersistanceClient.java ligne 146\n\n' +
+              'En attendant, vos informations (bio, téléphone, localisation) sont sauvegardées localement.');
+        
+        // Sauvegarder au moins les préférences locales
+        if (user?.id) {
+            userPreferencesService.savePreferences(user.id, {
+                bio: formData.bio,
+                telephone: formData.telephone,
+                localisation: formData.localisation
+            });
+        }
+        
+        return;
+        
+        /* Code original conservé pour référence
         setLoading(true);
         try {
-            console.log('Données à envoyer:', formData);
+            console.log('🔄 Données complètes:', formData);
+            
+            // Le backend ne supporte que: nom, prenom, email
+            // Les champs bio, telephone, localisation ne sont pas dans la table utilisateurs
+            // IMPORTANT: Ne PAS envoyer de champs vides/null - le backend peut les rejeter
+            const updateData = {};
+            
+            if (formData.nom && formData.nom.trim()) {
+                updateData.nom = formData.nom.trim();
+            }
+            if (formData.prenom && formData.prenom.trim()) {
+                updateData.prenom = formData.prenom.trim();
+            }
+            if (formData.email && formData.email.trim()) {
+                updateData.email = formData.email.trim();
+            }
+            
+            console.log('📤 Données envoyées au backend:', updateData);
+            console.log('👤 User ID:', user.id);
+            console.log('🔑 Token présent:', !!authService.getToken());
+            
             // Appel API pour mettre à jour l'utilisateur
-            const updatedUser = await authService.updateUser(user.id, formData);
-            console.log('Utilisateur mis à jour:', updatedUser);
-            updateUser(updatedUser);
+            const updatedUser = await authService.updateUser(user.id, updateData);
+            console.log('✅ Utilisateur mis à jour:', updatedUser);
+            
+            // Sauvegarder les préférences locales (bio, telephone, localisation)
+            userPreferencesService.savePreferences(user.id, {
+                bio: formData.bio,
+                telephone: formData.telephone,
+                localisation: formData.localisation
+            });
+            
+            // Mettre à jour le contexte utilisateur avec les données complètes
+            updateUser({
+                ...updatedUser,
+                bio: formData.bio,
+                telephone: formData.telephone,
+                localisation: formData.localisation
+            });
+            
             setIsEditing(false);
-            alert('Profil mis à jour avec succès !');
+            alert('✅ Profil mis à jour avec succès !\n\nNote: Les champs bio, téléphone et localisation sont stockés localement (le backend ne les supporte pas encore).');
         } catch (error) {
-            console.error('Erreur lors de la mise à jour:', error);
-            const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de la mise à jour du profil';
-            alert('Erreur: ' + errorMessage);
+            console.error('❌ Erreur lors de la mise à jour:', error);
+            console.error('❌ Réponse complète:', error.response);
+            
+            let errorMessage = 'Une erreur interne est survenue';
+            
+            if (error.response) {
+                // Erreur avec réponse du serveur
+                errorMessage = error.response.data?.message || error.response.data?.error || errorMessage;
+                
+                if (error.response.status === 401) {
+                    errorMessage = 'Session expirée. Veuillez vous reconnecter.';
+                } else if (error.response.status === 403) {
+                    errorMessage = 'Accès refusé. Token invalide.';
+                } else if (error.response.status === 500) {
+                    errorMessage = 'Erreur serveur. Vérifiez les logs backend.';
+                }
+            } else if (error.request) {
+                // Pas de réponse du serveur
+                errorMessage = 'Impossible de contacter le serveur';
+            } else {
+                // Autre erreur
+                errorMessage = error.message;
+            }
+            
+            alert('❌ Erreur: ' + errorMessage);
         } finally {
             setLoading(false);
         }
+        */
     };
 
     const handleValidateRecipe = (recetteId) => {
@@ -755,6 +851,14 @@ export default function AccountPage() {
                                         <Zap className="icon-sm" style={{ marginRight: '0.5rem' }} />
                                         Activité récente
                                     </h3>
+                                    <button
+                                        className="btn-icon"
+                                        onClick={loadRecentActivities}
+                                        disabled={activityLoading}
+                                        title="Rafraîchir les activités"
+                                    >
+                                        <RefreshCw className={`icon-sm ${activityLoading ? 'spinning' : ''}`} />
+                                    </button>
                                 </div>
                                 <div className="card-content">
                                     {activityLoading ? (

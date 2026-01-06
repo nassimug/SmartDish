@@ -1078,4 +1078,33 @@
 .badge-warning {
     background: #f59e0b;
     color: white;
-} 
+}
+
+/* Bouton icône */
+.btn-icon {
+    background: transparent;
+    border: none;
+    padding: 0.5rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-icon:hover:not(:disabled) {
+    background: var(--background-muted);
+    color: var(--primary);
+}
+
+.btn-icon:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Animation de rotation */
+.spinning {
+    animation: spin 1s linear infinite;
+}

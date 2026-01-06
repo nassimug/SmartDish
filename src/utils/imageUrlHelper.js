@@ -5,35 +5,56 @@
 /**
  * Normalise les URLs d'images en corrigeant le chemin du bucket MinIO
  * Transforme http(s)://minio:9000/... ou http://localhost:9002/recettes/... en URL publique consommable
+ * IMPORTANT: Préserve les URLs externes (images d'autres utilisateurs/serveurs)
  * @param {string} imageUrl - L'URL d'image à normaliser
  * @returns {string} - L'URL normalisée
  */
 export const normalizeImageUrl = (imageUrl) => {
     if (!imageUrl) return imageUrl;
-     const publicBase = process.env.REACT_APP_MINIO_PUBLIC_URL || 'http://localhost:9002/';
-    // Normaliser l'hôte MinIO interne vers l'hôte accessible depuis le navigateur
-     // minio:9000 (dans le réseau Docker) -> publicBase (port publié)
-    let url = imageUrl
-        .replace(/^https?:\/\/minio:9000\//, publicBase)
-        .replace(/^https?:\/\/localhost:9000\//, publicBase);
-
-    // Si c'est un chemin relatif sans protocole, construire l'URL publique
-    if (!/^https?:\/\//.test(url)) {
-        const cleaned = url.startsWith('/') ? url.slice(1) : url;
-        const normalizedPath = cleaned.startsWith('recettes-bucket')
-            ? cleaned
-            : cleaned.replace(/^recettes\//, 'recettes-bucket/');
-        return `${publicBase.replace(/\/$/, '')}/${normalizedPath}`;
+    
+    // IMPORTANT: Préserver les URLs de streaming backend (ms-persistance)
+    // Ces URLs sont déjà correctes et gèrent l'auth + CORS
+    if (imageUrl.includes('/api/persistance/') || imageUrl.includes('/stream')) {
+        return imageUrl;
+    }
+    
+    const publicBase = process.env.REACT_APP_MINIO_PUBLIC_URL || 'http://localhost:9002/';
+    
+    // Si c'est déjà une URL externe complète (pas localhost, pas minio interne), la retourner telle quelle
+    // Cela permet d'afficher les images d'autres utilisateurs/serveurs
+    if (/^https?:\/\//.test(imageUrl)) {
+        // URLs internes MinIO à normaliser
+        if (imageUrl.includes('minio:9000') || imageUrl.includes('localhost:9000')) {
+            let url = imageUrl
+                .replace(/^https?:\/\/minio:9000\//, publicBase)
+                .replace(/^https?:\/\/localhost:9000\//, publicBase);
+            
+            // Remplace /recettes/ par /recettes-bucket/ si nécessaire
+            if (!/\/recettes-bucket\//.test(url) && /\/recettes\//.test(url)) {
+                url = url.replace(/\/recettes\//, '/recettes-bucket/');
+            }
+            return url;
+        }
+        
+        // URL localhost:9002 (notre MinIO public)
+        if (imageUrl.includes('localhost:9002')) {
+            let url = imageUrl;
+            if (!/\/recettes-bucket\//.test(url) && /\/recettes\//.test(url)) {
+                url = url.replace(/\/recettes\//, '/recettes-bucket/');
+            }
+            return url;
+        }
+        
+        // URLs externes (autres serveurs, CDN, etc.) - retourner tel quel
+        return imageUrl;
     }
 
-    // Remplace /recettes/ par /recettes-bucket/ uniquement si le chemin n'a pas déjà 'recettes-bucket'
-    // Exemple: http://localhost:9002/recettes/... -> http://localhost:9002/recettes-bucket/...
-    // Ne pas doubler: http://localhost:9002/recettes-bucket/recettes/... doit rester tel quel
-    if (!/\/recettes-bucket\//.test(url) && /\/recettes\//.test(url)) {
-        url = url.replace(/\/recettes\//, '/recettes-bucket/');
-    }
-
-    return url;
+    // Si c'est un chemin relatif sans protocole, construire l'URL publique locale
+    const cleaned = imageUrl.startsWith('/') ? imageUrl.slice(1) : imageUrl;
+    const normalizedPath = cleaned.startsWith('recettes-bucket')
+        ? cleaned
+        : cleaned.replace(/^recettes\//, 'recettes-bucket/');
+    return `${publicBase.replace(/\/$/, '')}/${normalizedPath}`;
 };
 
 /**

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { RECIPE_PLACEHOLDER_URL } from '../utils/RecipePlaceholder';
 
 
 export const useLazyLoad = (options = {}) => {
@@ -38,7 +39,7 @@ export const useLazyLoad = (options = {}) => {
 
 export const LazyImage = ({ 
     src, 
-    placeholder = 'data:image/svg+xml;base64,...',
+    placeholder = RECIPE_PLACEHOLDER_URL,
     alt = '', 
     className = '',
     onLoad = null,
