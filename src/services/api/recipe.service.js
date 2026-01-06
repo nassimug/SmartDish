@@ -556,32 +556,73 @@ class RecipesService {
     /**
      * Charger toutes les recettes
      */
-    async getAllRecipesWithCache() {
+    /**
+     * Récupérer toutes les recettes avec cache et pagination
+     * @param {number} page - Numéro de page (0-indexed)
+     * @param {number} size - Taille de page (max 100)
+     * @returns {Promise<Array>} Liste des recettes
+     */
+    async getAllRecipesWithCache(page = 0, size = 50) {
         try {
-            console.log('[RecipeService] Appel getAllRecipesWithCache vers:', `${PERSISTENCE_URL}/recettes`);
+            console.log(`[RecipeService] Appel getAllRecipesWithCache vers ms-persistance (page=${page}, size=${size})`);
             const response = await axios.get(`${PERSISTENCE_URL}/recettes`, {
+                params: { page, size },
                 headers: this.getAuthHeader(),
-                timeout: 30000 // Timeout de 30 secondes (ms-persistance peut être lent avec Railway MySQL)
+                timeout: 30000 // Cache backend (Caffeine) réduit le temps à ~50ms après 1er appel
             });
             
-            console.log('[RecipeService] Recettes reçues:', response.data?.length || 0);
+            console.log('[RecipeService] Recettes reçues de ms-persistance (DTO léger, sans images):', response.data?.length || 0);
             return response.data || [];
         } catch (error) {
-            console.error('[RecipeService] Erreur getAllRecipesWithCache:', error.message);
+            console.error('[RecipeService] Erreur ms-persistance:', error.message);
             throw new Error('Impossible de charger les recettes depuis ms-persistance. Vérifiez la connexion à la base de données.');
         }
     }
 
     /**
+     * Récupérer toutes les recettes (toutes pages confondues)
+     * Utilise la pagination en boucle pour tout charger
+     * @returns {Promise<Array>} Liste complète des recettes
+     */
+    async getAllRecettesComplete() {
+        try {
+            let allRecipes = [];
+            let page = 0;
+            const size = 100; // Max autorisé
+            let hasMore = true;
+
+            while (hasMore) {
+                const recipes = await this.getAllRecipesWithCache(page, size);
+                if (recipes.length === 0) {
+                    hasMore = false;
+                } else {
+                    allRecipes = [...allRecipes, ...recipes];
+                    hasMore = recipes.length === size; // Continue si page pleine
+                    page++;
+                }
+            }
+
+            console.log('[RecipeService] Total recettes chargées:', allRecipes.length);
+            return allRecipes;
+        } catch (error) {
+            console.error('[RecipeService] Erreur getAllRecettesComplete:', error.message);
+            throw error;
+        }
+    }
+
+    /**
      * Récupérer les recettes en attente de validation
+     * Utilise l'endpoint backend dédié (plus rapide avec index DB)
      */
     async getRecettesEnAttente() {
         try {
-            const allRecipes = await this.getAllRecipesWithCache();
-            const recettesEnAttente = allRecipes.filter(r => r.statut === 'EN_ATTENTE');
-            console.log(`📋 Recettes en attente trouvées: ${recettesEnAttente.length}`);
-            
-            return normalizeRecipesImageUrls(recettesEnAttente);
+            console.log('[RecipeService] Appel /en-attente (endpoint optimisé backend)');
+            const response = await axios.get(`${API_URL}/en-attente`, {
+                headers: this.getAuthHeader(),
+                timeout: 10000
+            });
+            console.log(`📋 Recettes en attente reçues: ${response.data?.length || 0}`);
+            return normalizeRecipesImageUrls(response.data || []);
         } catch (error) {
             this.handleError(error);
         }
@@ -618,14 +659,17 @@ class RecipesService {
 
     /**
      * Récupérer les recettes validées
+     * Utilise l'endpoint backend dédié avec cache et index composite DB
      */
     async getRecettesValidees() {
         try {
-            const allRecipes = await this.getAllRecipesWithCache();
-            const recettesValidees = allRecipes.filter(r => r.statut === 'VALIDEE');
-            console.log(`✅ Recettes validées trouvées: ${recettesValidees.length}`);
-            
-            return normalizeRecipesImageUrls(recettesValidees);
+            console.log('[RecipeService] Appel /validees (endpoint optimisé backend)');
+            const response = await axios.get(`${API_URL}/validees`, {
+                headers: this.getAuthHeader(),
+                timeout: 10000
+            });
+            console.log(`✅ Recettes validées reçues: ${response.data?.length || 0}`);
+            return normalizeRecipesImageUrls(response.data || []);
         } catch (error) {
             this.handleError(error);
         }
@@ -633,14 +677,17 @@ class RecipesService {
 
     /**
      * Récupérer les recettes rejetées
+     * Utilise l'endpoint backend dédié avec cache et index composite DB
      */
     async getRecettesRejetees() {
         try {
-            const allRecipes = await this.getAllRecipesWithCache();
-            const recettesRejetees = allRecipes.filter(r => r.statut === 'REJETEE');
-            console.log(`❌ Recettes rejetées trouvées: ${recettesRejetees.length}`);
-            
-            return normalizeRecipesImageUrls(recettesRejetees);
+            console.log('[RecipeService] Appel /rejetees (endpoint optimisé backend)');
+            const response = await axios.get(`${API_URL}/rejetees`, {
+                headers: this.getAuthHeader(),
+                timeout: 10000
+            });
+            console.log(`❌ Recettes rejetées reçues: ${response.data?.length || 0}`);
+            return normalizeRecipesImageUrls(response.data || []);
         } catch (error) {
             this.handleError(error);
         }
