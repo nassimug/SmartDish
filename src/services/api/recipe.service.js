@@ -4,15 +4,11 @@ import feedbackService from './feedback.service';
 
 const API_URL = process.env.REACT_APP_RECIPE_SERVICE_URL || 'http://localhost:8093/api/recettes';
 const PERSISTENCE_URL = process.env.REACT_APP_PERSISTENCE_SERVICE_URL || 'http://localhost:8090/api/persistance';
-const RECOMMENDATION_URL = process.env.REACT_APP_RECOMMENDATION_SERVICE_URL || 'http://localhost:8095/api';
+const RECOMMENDATION_URL = process.env.REACT_APP_RECOMMENDATION_SERVICE_URL || 'http://localhost:8093/api';
 
 class RecipesService {
     constructor() {
         this.imagesCache = new Map();
-        // Cache pour les recettes avec timestamp
-        this.allRecipesCache = null;
-        this.cacheTimestamp = null;
-        this.CACHE_DURATION = 30000; // 30 secondes
     }
     // Helper pour obtenir le token
     getAuthHeader() {
@@ -48,6 +44,7 @@ class RecipesService {
             const response = await axios.post(`${API_URL}`, recetteData, {
                 headers: this.getAuthHeader()
             });
+            
             return normalizeRecipeImageUrl(response.data);
         } catch (error) {
             this.handleError(error);
@@ -62,6 +59,13 @@ class RecipesService {
             const response = await axios.get(`${API_URL}`, {
                 headers: this.getAuthHeader()
             });
+            
+            // Vérifier que la réponse est bien un tableau
+            if (!Array.isArray(response.data)) {
+                console.error('[RecipeService] Réponse inattendue (pas un tableau):', response.data);
+                return [];
+            }
+            
             return normalizeRecipesImageUrls(response.data);
         } catch (error) {
             this.handleError(error);
@@ -76,6 +80,7 @@ class RecipesService {
             const response = await axios.get(`${API_URL}/${id}`, {
                 headers: this.getAuthHeader()
             });
+            
             return normalizeRecipeImageUrl(response.data);
         } catch (error) {
             this.handleError(error);
@@ -146,6 +151,7 @@ class RecipesService {
             const response = await axios.put(`${API_URL}/${id}`, updateData, {
                 headers: this.getAuthHeader()
             });
+            
             return response.data;
         } catch (error) {
             this.handleError(error);
@@ -221,9 +227,9 @@ class RecipesService {
             const formData = new FormData();
             formData.append('file', file);
 
-            // Appelle via ms-recette (API_URL) qui proxie vers ms-persistance
+            // Appeler directement ms-persistance pour éviter CORS et timeout de ms-recette
             const response = await axios.post(
-                `${API_URL}/${recetteId}/fichiers/images`,
+                `${PERSISTENCE_URL}/recettes/${recetteId}/fichiers/images`,
                 formData,
                 {
                     headers: {
@@ -260,9 +266,9 @@ class RecipesService {
             const formData = new FormData();
             formData.append('file', file);
 
-            // Appelle via ms-recette (API_URL) qui proxie vers ms-persistance
+            // Appeler directement ms-persistance pour éviter CORS et timeout
             const response = await axios.post(
-                `${API_URL}/${recetteId}/fichiers/documents`,
+                `${PERSISTENCE_URL}/recettes/${recetteId}/fichiers/documents`,
                 formData,
                 {
                     headers: {
@@ -286,8 +292,8 @@ class RecipesService {
      */
     async getAllFichiers(recetteId) {
         try {
-            // Appelle via ms-recette (API_URL) qui proxie vers ms-persistance
-            const response = await axios.get(`${API_URL}/${recetteId}/fichiers`, {
+            // Appeler directement ms-persistance pour éviter timeout
+            const response = await axios.get(`${PERSISTENCE_URL}/recettes/${recetteId}/fichiers`, {
                 headers: this.getAuthHeader()
             });
             // Normaliser les URLs téléchargement
@@ -315,106 +321,48 @@ class RecipesService {
             if (this.imagesCache.has(recetteId)) {
                 return this.imagesCache.get(recetteId);
             }
-            const publicBase = process.env.REACT_APP_MINIO_PUBLIC_URL || 'http://localhost:9002';
-            // Appelle via ms-recette (API_URL) qui proxie vers ms-persistance
-            const response = await axios.get(`${API_URL}/${recetteId}/fichiers/images`, {
+
+            // Appeler directement ms-persistance pour éviter timeout de ms-recette
+            const response = await axios.get(`${PERSISTENCE_URL}/recettes/${recetteId}/fichiers/images`, {
                 headers: this.getAuthHeader()
             });
             
-            // Normaliser les URLs téléchargement (présignées) et stream
-            const processed = (response.data || []).map(image => {
-                let primaryUrl = null;
-                let directUrl = null;
-                
-                // Stratégie 1: Construire URL directe depuis le bucket path à partir de l'URL presignée
-                if (image.urlTelechargement) {
-                    const presignedMatch = image.urlTelechargement.match(/https?:\/\/([^/]+)\/(.*?)\?/);
-                    if (presignedMatch) {
-                        const objectPath = presignedMatch[2];
-                        const normalizedPath = objectPath.includes('recettes-bucket')
-                            ? objectPath
-                            : objectPath.replace(/^recettes\//, 'recettes-bucket/');
-                        directUrl = `${publicBase.replace(/\/$/, '')}/${normalizedPath}`;
-                    }
-                    primaryUrl = normalizeImageUrl(image.urlTelechargement);
+            // Utiliser UNIQUEMENT urlStream (backend proxy) pour contourner les problèmes de CORS et permissions MinIO Railway
+            const normalizeStreamUrl = (u) => {
+                if (!u) return u;
+                if (u.startsWith('http')) return u;
+                const cleaned = u.replace(/^\/+/, '');
+                if (cleaned.startsWith('api/persistance/')) {
+                    return `${PERSISTENCE_URL}/${cleaned.replace(/^api\/persistance\//, '')}`;
                 }
+                return `${PERSISTENCE_URL}/${cleaned}`;
+            };
 
-                // Stratégie 1 bis: Construire directUrl depuis cheminFichier si pas trouvé
-                if (!directUrl && image.cheminFichier) {
-                    const cleanedPath = image.cheminFichier.startsWith('/')
-                        ? image.cheminFichier.slice(1)
-                        : image.cheminFichier;
-                    const normalizedPath = cleanedPath.startsWith('recettes-bucket')
-                        ? cleanedPath
-                        : cleanedPath.replace(/^recettes\//, 'recettes-bucket/');
-                    directUrl = `${publicBase.replace(/\/$/, '')}/${normalizedPath}`;
-                }
-                
-                // Stratégie 2: urlStream (backend inline streaming)
-                let streamUrl = null;
-                if (image.urlStream) {
-                    streamUrl = `${API_URL}${image.urlStream}`;
-                }
+            const processed = (response.data || []).map(image => {
+                // Construire l'URL de streaming via ms-persistance (authentifié, pas de CORS, toujours accessible)
+                const streamPath = image.urlStream || `/recettes/${recetteId}/fichiers/images/${image.id}/stream`;
+                const directUrl = normalizeStreamUrl(image.directUrl);
+                const urlStream = normalizeStreamUrl(streamPath);
+                const urlTelechargement = normalizeStreamUrl(image.urlTelechargement);
+                const fallback = image.url || image.cheminFichier;
+                const displayUrl = directUrl || urlStream || urlTelechargement || normalizeStreamUrl(fallback);
                 
                 return {
                     ...image,
-                    directUrl: directUrl,        // Direct MinIO URL without presigned params (PRIMARY)
-                    urlTelechargement: primaryUrl,  // Presigned URL (fallback)
-                    urlStream: streamUrl,        // Backend streaming endpoint (fallback)
-                    url: image.url ? normalizeImageUrl(image.url) : image.url
+                    directUrl,
+                    urlStream,
+                    urlTelechargement,
+                    displayUrl
                 };
             });
+            
             if (processed.length > 0) {
                 this.imagesCache.set(recetteId, processed);
             }
             return processed;
         } catch (error) {
-            console.warn('[RecipeService] getImages via ms-recette a échoué, tentative via ms-persistance...', error?.message);
-            // Fallback: appeler directement ms-persistance si le proxy échoue
-            try {
-                const publicBase = process.env.REACT_APP_MINIO_PUBLIC_URL || 'http://localhost:9002';
-                const response2 = await axios.get(`${PERSISTENCE_URL}/${recetteId}/fichiers/images`, {
-                    headers: this.getAuthHeader()
-                });
-                const processed2 = (response2.data || []).map(image => {
-                    let directUrl = null;
-                    let primaryUrl = null;
-                    if (image.urlTelechargement) {
-                        const presignedMatch = image.urlTelechargement.match(/https?:\/\/([^/]+)\/(.*?)\?/);
-                        if (presignedMatch) {
-                            const objectPath = presignedMatch[2];
-                            const normalizedPath = objectPath.includes('recettes-bucket')
-                                ? objectPath
-                                : objectPath.replace(/^recettes\//, 'recettes-bucket/');
-                            directUrl = `${publicBase.replace(/\/$/, '')}/${normalizedPath}`;
-                        }
-                        primaryUrl = normalizeImageUrl(image.urlTelechargement);
-                    }
-                    if (!directUrl && image.cheminFichier) {
-                        const cleanedPath = image.cheminFichier.startsWith('/')
-                            ? image.cheminFichier.slice(1)
-                            : image.cheminFichier;
-                        const normalizedPath = cleanedPath.startsWith('recettes-bucket')
-                            ? cleanedPath
-                            : cleanedPath.replace(/^recettes\//, 'recettes-bucket/');
-                        directUrl = `${publicBase.replace(/\/$/, '')}/${normalizedPath}`;
-                    }
-                    const streamUrl = image.urlStream ? `${API_URL}${image.urlStream}` : null;
-                    return {
-                        ...image,
-                        directUrl,
-                        urlTelechargement: primaryUrl,
-                        urlStream: streamUrl,
-                        url: image.url ? normalizeImageUrl(image.url) : image.url
-                    };
-                });
-                if (processed2.length > 0) {
-                    this.imagesCache.set(recetteId, processed2);
-                }
-                return processed2;
-            } catch (error2) {
-                this.handleError(error2);
-            }
+            console.error('[RecipeService] Erreur getImages:', error);
+            return [];
         }
     }
 
@@ -501,7 +449,9 @@ class RecipesService {
      */
     async getAllAliments() {
         try {
-            const response = await axios.get(`${PERSISTENCE_URL}/aliments`, {
+            // TODO: Corriger l'endpoint - actuellement /api/persistance/aliments retourne 404
+            // Essayer d'autres endpoints: /api/aliments, /api/persistance/alimentss, etc.
+            const response = await axios.get(`/api/aliments`, {
                 headers: this.getAuthHeader()
             });
             return response.data;
@@ -604,45 +554,75 @@ class RecipesService {
     }
 
     /**
-     * Charger toutes les recettes une seule fois et les mettre en cache
+     * Charger toutes les recettes
      */
-    async getAllRecipesWithCache() {
-        const now = Date.now();
-
-        // Utiliser le cache si valide
-        if (this.allRecipesCache && this.cacheTimestamp && (now - this.cacheTimestamp) < this.CACHE_DURATION) {
-            return this.allRecipesCache;
+    /**
+     * Récupérer toutes les recettes avec cache et pagination
+     * @param {number} page - Numéro de page (0-indexed)
+     * @param {number} size - Taille de page (max 100)
+     * @returns {Promise<Array>} Liste des recettes
+     */
+    async getAllRecipesWithCache(page = 0, size = 50) {
+        try {
+            console.log(`[RecipeService] Appel getAllRecipesWithCache vers ms-persistance (page=${page}, size=${size})`);
+            const response = await axios.get(`${PERSISTENCE_URL}/recettes`, {
+                params: { page, size },
+                headers: this.getAuthHeader(),
+                timeout: 30000 // Cache backend (Caffeine) réduit le temps à ~50ms après 1er appel
+            });
+            
+            console.log('[RecipeService] Recettes reçues de ms-persistance (DTO léger, sans images):', response.data?.length || 0);
+            return response.data || [];
+        } catch (error) {
+            console.error('[RecipeService] Erreur ms-persistance:', error.message);
+            throw new Error('Impossible de charger les recettes depuis ms-persistance. Vérifiez la connexion à la base de données.');
         }
-
-        // Sinon, recharger
-        const response = await axios.get(`${PERSISTENCE_URL}/recettes`, {
-            headers: this.getAuthHeader()
-        });
-
-        this.allRecipesCache = response.data || [];
-        this.cacheTimestamp = now;
-
-        return this.allRecipesCache;
     }
 
     /**
-     * Invalider le cache (appelé après validation/rejet)
+     * Récupérer toutes les recettes (toutes pages confondues)
+     * Utilise la pagination en boucle pour tout charger
+     * @returns {Promise<Array>} Liste complète des recettes
      */
-    invalidateCache() {
-        this.allRecipesCache = null;
-        this.cacheTimestamp = null;
+    async getAllRecettesComplete() {
+        try {
+            let allRecipes = [];
+            let page = 0;
+            const size = 100; // Max autorisé
+            let hasMore = true;
+
+            while (hasMore) {
+                const recipes = await this.getAllRecipesWithCache(page, size);
+                if (recipes.length === 0) {
+                    hasMore = false;
+                } else {
+                    allRecipes = [...allRecipes, ...recipes];
+                    hasMore = recipes.length === size; // Continue si page pleine
+                    page++;
+                }
+            }
+
+            console.log('[RecipeService] Total recettes chargées:', allRecipes.length);
+            return allRecipes;
+        } catch (error) {
+            console.error('[RecipeService] Erreur getAllRecettesComplete:', error.message);
+            throw error;
+        }
     }
 
     /**
      * Récupérer les recettes en attente de validation
+     * Utilise l'endpoint backend dédié (plus rapide avec index DB)
      */
     async getRecettesEnAttente() {
         try {
-            const allRecipes = await this.getAllRecipesWithCache();
-            const recettesEnAttente = allRecipes.filter(r => r.statut === 'EN_ATTENTE');
-            console.log(`📋 Recettes en attente trouvées: ${recettesEnAttente.length}`);
-
-            return normalizeRecipesImageUrls(recettesEnAttente);
+            console.log('[RecipeService] Appel /en-attente (endpoint optimisé backend)');
+            const response = await axios.get(`${API_URL}/en-attente`, {
+                headers: this.getAuthHeader(),
+                timeout: 10000
+            });
+            console.log(`📋 Recettes en attente reçues: ${response.data?.length || 0}`);
+            return normalizeRecipesImageUrls(response.data || []);
         } catch (error) {
             this.handleError(error);
         }
@@ -656,8 +636,6 @@ class RecipesService {
             const response = await axios.put(`${API_URL}/${id}/valider`, null, {
                 headers: this.getAuthHeader()
             });
-            // Invalider le cache pour forcer le rechargement
-            this.invalidateCache();
             return response.data;
         } catch (error) {
             this.handleError(error);
@@ -673,8 +651,6 @@ class RecipesService {
             const response = await axios.put(`${API_URL}/${id}/rejeter`, { motif: motif || 'Non conforme' }, {
                 headers: this.getAuthHeader()
             });
-            // Invalider le cache pour forcer le rechargement
-            this.invalidateCache();
             return response.data;
         } catch (error) {
             this.handleError(error);
@@ -683,14 +659,17 @@ class RecipesService {
 
     /**
      * Récupérer les recettes validées
+     * Utilise l'endpoint backend dédié avec cache et index composite DB
      */
     async getRecettesValidees() {
         try {
-            const allRecipes = await this.getAllRecipesWithCache();
-            const recettesValidees = allRecipes.filter(r => r.statut === 'VALIDEE');
-            console.log(`✅ Recettes validées trouvées: ${recettesValidees.length}`);
-            
-            return normalizeRecipesImageUrls(recettesValidees);
+            console.log('[RecipeService] Appel /validees (endpoint optimisé backend)');
+            const response = await axios.get(`${API_URL}/validees`, {
+                headers: this.getAuthHeader(),
+                timeout: 10000
+            });
+            console.log(`✅ Recettes validées reçues: ${response.data?.length || 0}`);
+            return normalizeRecipesImageUrls(response.data || []);
         } catch (error) {
             this.handleError(error);
         }
@@ -698,14 +677,17 @@ class RecipesService {
 
     /**
      * Récupérer les recettes rejetées
+     * Utilise l'endpoint backend dédié avec cache et index composite DB
      */
     async getRecettesRejetees() {
         try {
-            const allRecipes = await this.getAllRecipesWithCache();
-            const recettesRejetees = allRecipes.filter(r => r.statut === 'REJETEE');
-            console.log(`❌ Recettes rejetées trouvées: ${recettesRejetees.length}`);
-            
-            return normalizeRecipesImageUrls(recettesRejetees);
+            console.log('[RecipeService] Appel /rejetees (endpoint optimisé backend)');
+            const response = await axios.get(`${API_URL}/rejetees`, {
+                headers: this.getAuthHeader(),
+                timeout: 10000
+            });
+            console.log(`❌ Recettes rejetées reçues: ${response.data?.length || 0}`);
+            return normalizeRecipesImageUrls(response.data || []);
         } catch (error) {
             this.handleError(error);
         }

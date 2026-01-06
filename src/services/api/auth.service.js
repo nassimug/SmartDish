@@ -97,13 +97,25 @@ class AuthService {
     async updateUser(id, userData) {
         try {
             const token = this.getToken();
+            console.log('🔵 [AuthService] updateUser called');
+            console.log('   URL:', `${API_URL}/${id}`);
+            console.log('   Data:', JSON.stringify(userData, null, 2));
+            console.log('   Token:', token ? token.substring(0, 20) + '...' : 'NO TOKEN');
+            
             const response = await axios.put(`${API_URL}/${id}`, userData, {
                 headers: {
-                    Authorization: `Bearer ${token}`
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json'
                 }
             });
+            
+            console.log('✅ [AuthService] Update successful:', response.data);
             return response.data;
         } catch (error) {
+            console.error('❌ [AuthService] Update failed');
+            console.error('   Status:', error.response?.status);
+            console.error('   Data:', error.response?.data);
+            console.error('   Headers:', error.response?.headers);
             throw this.handleError(error);
         }
     }

@@ -57,7 +57,7 @@ export default function RecipePage() {
     // Vérifier si l'utilisateur est admin
     const isAdmin = user?.role === 'ADMIN';
 
-    // Charger les images (admin uniquement)
+    // Charger les images (tous utilisateurs)
     const loadImages = useCallback(async () => {
         try {
             const data = await recipesService.getImages(recipeId);
@@ -66,7 +66,17 @@ export default function RecipePage() {
                 const finalUrl = display ? normalizeImageUrl(display) : display;
                 return { ...img, displayUrl: finalUrl };
             });
+            console.log('Images stream chargées:', normalized);
             setImages(normalized);
+
+            // Si on a au moins une image stream, l'utiliser comme image principale affichée
+            if (normalized.length > 0 && normalized[0].displayUrl) {
+                setRecipe((prev) => prev ? {
+                    ...prev,
+                    image: normalized[0].displayUrl,
+                    imageUrl: normalized[0].displayUrl
+                } : prev);
+            }
         } catch (err) {
             console.error('Erreur chargement images:', err);
         }
@@ -91,18 +101,20 @@ export default function RecipePage() {
                         return feedback;
                     }
 
-                    // Sinon, essayer de récupérer les infos depuis ms-utilisateur
+                    // Sinon, essayer de récupérer les infos depuis ms-persistance (qui a accès à la DB)
                     if (feedback.utilisateurId) {
                         try {
-                            const response = await fetch(`http://localhost:8092/api/utilisateurs/${feedback.utilisateurId}`, {
+                            const token = localStorage.getItem('token');
+                            const response = await fetch(`http://localhost:8090/api/persistance/utilisateurs/${feedback.utilisateurId}`, {
                                 headers: {
-                                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                                    'Authorization': `Bearer ${token}`,
+                                    'Content-Type': 'application/json'
                                 }
                             });
 
                             if (response.ok) {
                                 const userData = await response.json();
-                                console.log('User data récupéré depuis ms-utilisateur:', userData);
+                                console.log('User data récupéré depuis ms-persistance:', userData);
                                 return {
                                     ...feedback,
                                     utilisateur: {
@@ -111,6 +123,8 @@ export default function RecipePage() {
                                         nom: userData.nom || 'Anonyme'
                                     }
                                 };
+                            } else {
+                                console.warn(`Réponse ${response.status} pour utilisateur ${feedback.utilisateurId}`);
                             }
                         } catch (error) {
                             console.error(`Erreur récupération utilisateur ${feedback.utilisateurId}:`, error);
@@ -181,8 +195,9 @@ export default function RecipePage() {
                     title: data.titre,
                     titre: data.titre,
                     description: data.description || 'Délicieuse recette à découvrir !',
-                    image: data.imageUrl ? normalizeImageUrl(data.imageUrl) : data.imageUrl,
-                    imageUrl: data.imageUrl ? normalizeImageUrl(data.imageUrl) : data.imageUrl,
+                    // On évite d'utiliser l'URL MinIO retournée (403). On mettra à jour après getImages().
+                    image: null,
+                    imageUrl: null,
                     cookTime: data.tempsTotal ? `${data.tempsTotal} min` : 'N/A',
                     tempsPreparation: data.tempsTotal,
                     prepTime: data.tempsTotal ? `${data.tempsTotal} min` : 'N/A',
@@ -252,10 +267,8 @@ export default function RecipePage() {
 
                 setRecipe(mappedRecipe);
 
-                // Si admin, charger aussi les images
-                if (isAdmin) {
-                    loadImages();
-                }
+                // Charger aussi les images pour tous (pour avoir l'URL de streaming)
+                loadImages();
 
                 // Charger les feedbacks
                 loadFeedbacks();
@@ -268,12 +281,10 @@ export default function RecipePage() {
             }
         };
 
-        if (recipeId) {
-            loadRecipe();
-            if (isAdmin) {
+            if (recipeId) {
+                loadRecipe();
                 loadImages();
             }
-        }
     }, [recipeId, isAdmin, loadImages]);
 
     // Recalculer la note moyenne quand les feedbacks changent
@@ -324,11 +335,18 @@ export default function RecipePage() {
         try {
             setUploadingImage(true);
             const result = await recipesService.uploadImage(recipeId, file);
+            console.log('✅ Upload réussi, résultat:', result);
+            console.log('  - directUrl:', result.directUrl);
+            console.log('  - urlStream:', result.urlStream);
+            console.log('  - urlTelechargement:', result.urlTelechargement);
+            
             await loadImages();
+            console.log('📸 Images rechargées, total:', images.length);
 
             if (!recipe.image || recipe.image.includes('placeholder')) {
                 const chosen = result.directUrl || result.urlStream || result.urlTelechargement || result.url || result.cheminFichier;
                 const imageUrl = chosen ? normalizeImageUrl(chosen) : chosen;
+                console.log('🎯 URL choisie pour image principale:', imageUrl);
                 if (imageUrl) {
                     setRecipe({ ...recipe, image: imageUrl, imageUrl: imageUrl });
 
@@ -336,6 +354,7 @@ export default function RecipePage() {
                         await recipesService.updateRecette(recipeId, {
                             imageUrl: imageUrl
                         });
+                        console.log('✅ Image principale mise à jour');
                     } catch (err) {
                         console.error('Erreur mise à jour image principale:', err);
                     }
@@ -666,7 +685,7 @@ export default function RecipePage() {
                 <div className="recipe-header-grid">
                     <div className="recipe-image-container">
                         <img
-                            src={recipe.image || recipe.imageUrl || RECIPE_PLACEHOLDER_URL}
+                            src={(images[0]?.displayUrl) || recipe.image || recipe.imageUrl || RECIPE_PLACEHOLDER_URL}
                             alt={recipe.title || recipe.titre}
                             className="recipe-main-image"
                             onError={(e) => {

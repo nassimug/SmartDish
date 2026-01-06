@@ -16,6 +16,7 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
+    "prestart": "node scripts/kill-port.js 3000",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
@@ -39,5 +40,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "http-proxy-middleware": "^3.0.5"
   }
 }
