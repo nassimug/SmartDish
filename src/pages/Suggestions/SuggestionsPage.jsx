@@ -67,16 +67,17 @@ export default function SuggestionsPage() {
                             let note = enriched.note || 0;
                             let nombreAvis = enriched.nombreAvis || 0;
 
-                            // Choisir la meilleure image disponible (directUrl > stream > presigned > fallback)
+                            // Choisir la meilleure image disponible (urlStream > directUrl > presigned > fallback)
                             let imageUrl = recipe.imageUrl ? normalizeImageUrl(recipe.imageUrl) : null;
                             console.log('[Suggestions] Base imageUrl', recipe.id, recipe.imageUrl);
                             try {
                                 const imgs = await recipesService.getImages(recipe.id);
                                 if (imgs && imgs.length > 0) {
-                                    const best = imgs[0].directUrl || imgs[0].urlStream || imgs[0].urlTelechargement || imgs[0].url;
+                                    // PRIORITÉ: urlStream (backend) > directUrl (MinIO) > presigned > fallback
+                                    const best = imgs[0].urlStream || imgs[0].directUrl || imgs[0].urlTelechargement || imgs[0].url;
                                     if (best) {
                                         imageUrl = normalizeImageUrl(best);
-                                        console.log('[Suggestions] Using images[0]', recipe.id, imageUrl);
+                                        console.log('[Suggestions] Using images[0]', recipe.id, 'via', imgs[0].urlStream ? 'urlStream' : 'directUrl', imageUrl?.substring(0, 80));
                                     }
                                 }
                             } catch (e) {

@@ -11,13 +11,12 @@
  */
 export const normalizeImageUrl = (imageUrl) => {
     if (!imageUrl) return imageUrl;
-    
-    // IMPORTANT: Préserver les URLs de streaming backend (ms-persistance)
-    // Ces URLs sont déjà correctes et gèrent l'auth + CORS
-    if (imageUrl.includes('/api/persistance/') || imageUrl.includes('/stream')) {
+    // Préserver les URLs de streaming backend (ms-persistance)
+    // Elles doivent rester telles quelles (absolues) pour éviter toute altération
+    if (typeof imageUrl === 'string' && (imageUrl.includes('/api/persistance/') || imageUrl.includes('/content'))) {
         return imageUrl;
     }
-    
+
     const publicBase = process.env.REACT_APP_MINIO_PUBLIC_URL || 'http://localhost:9002/';
     
     // Si c'est déjà une URL externe complète (pas localhost, pas minio interne), la retourner telle quelle
@@ -35,10 +34,14 @@ export const normalizeImageUrl = (imageUrl) => {
             // Nettoyer les double-slashes dans le chemin
             url = url.replace(/([^:])(\/\/+)/g, '$1/');
             
-            // Remplace /recettes/ par /recettes-bucket/ si nécessaire
-            if (!/\/recettes-bucket\//.test(url) && /\/recettes\//.test(url)) {
-                url = url.replace(/\/recettes\//, '/recettes-bucket/');
-            }
+            // Le chemin correct dans MinIO est : recettes-bucket/recettes/ID/images/...
+            // Ne PAS retirer le /recettes/ car c'est le chemin réel dans le bucket
+            // Juste nettoyer les double-slashes
+            url = url.replace(/([^:])(\/\/+)/g, '$1/');
+
+            // Supprimer les paramètres de signature présignée pour utiliser l'objet public
+            // (nécessite que le bucket soit en lecture publique)
+            url = url.split('?')[0];
             return url;
         }
         
@@ -48,9 +51,20 @@ export const normalizeImageUrl = (imageUrl) => {
 
     // Si c'est un chemin relatif sans protocole, construire l'URL publique locale
     const cleaned = imageUrl.startsWith('/') ? imageUrl.slice(1) : imageUrl;
-    const normalizedPath = cleaned.startsWith('recettes-bucket')
-        ? cleaned
-        : cleaned.replace(/^recettes\//, 'recettes-bucket/');
+    
+    // Le chemin dans MinIO est : recettes-bucket/recettes/ID/images/...
+    // Garder le /recettes/ car c'est le chemin réel
+    let normalizedPath = cleaned;
+    if (!normalizedPath.startsWith('recettes-bucket/')) {
+        // Si ça commence par recettes/, ajouter le préfixe bucket
+        if (normalizedPath.startsWith('recettes/')) {
+            normalizedPath = 'recettes-bucket/' + normalizedPath;
+        } else {
+            // Sinon ajouter recettes-bucket/recettes/
+            normalizedPath = 'recettes-bucket/recettes/' + normalizedPath;
+        }
+    }
+    
     return `${publicBase.replace(/\/$/, '')}/${normalizedPath}`;
 };
 

@@ -9,7 +9,7 @@
 
 const axios = require('axios');
 
-const PERSIST_URL = process.env.PERSIST_URL || 'http://localhost:8090/api/persistance/recettes';
+const PERSIST_URL = process.env.PERSIST_URL || process.env.REACT_APP_PERSISTENCE_SERVICE_URL ? `${process.env.REACT_APP_PERSISTENCE_SERVICE_URL}/recettes` : 'https://ms-persistance-production.up.railway.app/api/persistance/recettes';
 const RECETTE_URL = process.env.RECETTE_URL || 'http://localhost:8093/api/recettes';
 const APPLY = process.argv.includes('--apply');
 const INCLUDE_VALIDATED = process.argv.includes('--include-validated');

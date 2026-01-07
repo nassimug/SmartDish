@@ -45,11 +45,12 @@ export default function HomePage() {
                             try {
                                 const imgs = await recipesService.getImages(recipe.id);
                                 if (imgs && imgs.length > 0) {
-                                    // Préférence: directUrl (MinIO public) > stream > presigned > fallback
-                                    const best = imgs[0].directUrl || imgs[0].urlStream || imgs[0].urlTelechargement || imgs[0].url;
+                                    // PRIORITÉ: urlStream (backend) > directUrl (MinIO) > presigned > fallback
+                                    // urlStream fonctionne car ms-persistance est maintenant déployé sur Railway
+                                    const best = imgs[0].urlStream || imgs[0].directUrl || imgs[0].urlTelechargement || imgs[0].url;
                                     if (best) {
                                         primaryImageUrl = normalizeImageUrl(best);
-                                        console.log('[Home] Using images[0] for recipe', recipe.id, primaryImageUrl);
+                                        console.log('[Home] Using images[0] for recipe', recipe.id, 'via', imgs[0].urlStream ? 'urlStream' : 'directUrl', primaryImageUrl?.substring(0, 80));
                                     }
                                 }
                             } catch (e) {
@@ -108,7 +109,8 @@ export default function HomePage() {
                                     try {
                                         const imgs = await recipesService.getImages(recipe.id);
                                         if (imgs && imgs.length > 0) {
-                                            const best = imgs[0].directUrl || imgs[0].urlStream || imgs[0].urlTelechargement || imgs[0].url;
+                                            // PRIORITÉ: urlStream (backend) > directUrl (MinIO) > presigned > fallback
+                                            const best = imgs[0].urlStream || imgs[0].directUrl || imgs[0].urlTelechargement || imgs[0].url;
                                             if (best) {
                                                 primaryImageUrl = normalizeImageUrl(best);
                                             }

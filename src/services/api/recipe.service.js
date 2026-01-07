@@ -2,8 +2,9 @@ import axios from 'axios';
 import { normalizeImageUrl, normalizeRecipeImageUrl, normalizeRecipesImageUrls } from '../../utils/imageUrlHelper';
 import feedbackService from './feedback.service';
 
+// URLs des services - utilisent les variables d'environnement pour Railway
 const API_URL = process.env.REACT_APP_RECIPE_SERVICE_URL || 'http://localhost:8093/api/recettes';
-const PERSISTENCE_URL = process.env.REACT_APP_PERSISTENCE_SERVICE_URL || 'http://localhost:8090/api/persistance';
+const PERSISTENCE_URL = process.env.REACT_APP_PERSISTENCE_SERVICE_URL || 'https://ms-persistance-production.up.railway.app/api/persistance';
 const RECOMMENDATION_URL = process.env.REACT_APP_RECOMMENDATION_SERVICE_URL || 'http://localhost:8095/api';
 const USER_URL = process.env.REACT_APP_USER_SERVICE_URL || 'http://localhost:8092/api/utilisateurs';
 const FEEDBACK_URL = process.env.REACT_APP_FEEDBACK_SERVICE_URL || 'http://localhost:8091/api/feedbacks';
@@ -13,10 +14,47 @@ class RecipesService {
     constructor() {
         this.imagesCache = new Map();
     }
+    
+    // Vider le cache des images (utile pour forcer le rechargement)
+    clearImageCache(recetteId = null) {
+        if (recetteId) {
+            this.imagesCache.delete(recetteId);
+            console.log('🗑️ Cache images vidé pour recette', recetteId);
+        } else {
+            this.imagesCache.clear();
+            console.log('🗑️ Cache images complètement vidé');
+        }
+    }
+    
     // Helper pour obtenir le token
     getAuthHeader() {
         const token = localStorage.getItem('token');
         return token ? { Authorization: `Bearer ${token}` } : {};
+    }
+
+    // Helper pour construire les URLs de streaming de manière robuste
+    _buildStreamUrl(urlStream) {
+        if (!urlStream) {
+            return null;
+        }
+        
+        // Si c'est déjà une URL absolue, la retourner comme-est
+        if (urlStream.startsWith('http://') || urlStream.startsWith('https://')) {
+            return urlStream;
+        }
+        
+        // Extraire la base URL (sans /api/persistance)
+        // PERSISTENCE_URL = https://ms-persistance-production.up.railway.app/api/persistance
+        const baseUrl = PERSISTENCE_URL.replace(/\/api\/persistance.*$/, '');
+        
+        // Le backend retourne /api/persistance/recettes/... ou /recettes/...
+        // On doit l'ajouter directement au baseUrl
+        if (!urlStream.startsWith('/api/persistance/')) {
+            // Si ce n'est pas /api/persistance/..., on ajoute le préfixe
+            urlStream = `/api/persistance${urlStream.startsWith('/') ? '' : '/'}${urlStream}`;
+        }
+        
+        return `${baseUrl}${urlStream}`;
     }
 
     // Helper pour gérer les erreurs
@@ -151,12 +189,23 @@ class RecipesService {
      */
     async updateRecette(id, updateData) {
         try {
+            console.log('📝 Mise à jour recette:', { id, updateData });
+            console.log('📡 URL appelée:', `${API_URL}/${id}`);
+            
             const response = await axios.put(`${API_URL}/${id}`, updateData, {
                 headers: this.getAuthHeader()
             });
             
+            console.log('✅ Recette mise à jour avec succès');
             return response.data;
         } catch (error) {
+            console.error('❌ Erreur lors de la mise à jour:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                message: error.message,
+                data: error.response?.data,
+                url: error.config?.url
+            });
             this.handleError(error);
         }
     }
@@ -227,6 +276,15 @@ class RecipesService {
      */
     async uploadImage(recetteId, file) {
         try {
+            console.log('📤 Upload image:', {
+                recetteId,
+                fileName: file.name,
+                fileSize: file.size,
+                fileType: file.type,
+                persistenceUrl: PERSISTENCE_URL,
+                minioPublicUrl: process.env.REACT_APP_MINIO_PUBLIC_URL
+            });
+
             const formData = new FormData();
             formData.append('file', file);
 
@@ -241,6 +299,9 @@ class RecipesService {
                     }
                 }
             );
+            
+            console.log('✅ Réponse upload backend:', response.data);
+            
             // Normaliser urlTelechargement si présent
             if (response.data?.urlTelechargement) {
                 response.data.urlTelechargement = normalizeImageUrl(response.data.urlTelechargement);
@@ -248,15 +309,26 @@ class RecipesService {
                 // Générer une directUrl (sans signature) depuis le chemin objet
                 const presignedMatch = response.data.urlTelechargement.match(/https?:\/\/([^/]+)\/(.*?)\?/);
                 if (presignedMatch) {
+                    // Le chemin dans MinIO est : recettes-bucket/recettes/ID/images/...
+                    // Garder tel quel, c'est le bon chemin
                     const objectPath = presignedMatch[2];
-                    const normalizedPath = objectPath.includes('recettes-bucket')
-                        ? objectPath
-                        : objectPath.replace(/^recettes\//, 'recettes-bucket/');
-                    response.data.directUrl = `http://localhost:9002/${normalizedPath}`;
+                    
+                    // Utiliser l'URL publique MinIO depuis les variables d'environnement
+                    const minioPublicUrl = process.env.REACT_APP_MINIO_PUBLIC_URL || 'http://localhost:9002';
+                    response.data.directUrl = `${minioPublicUrl}/${objectPath}`;
+                    
+                    console.log('📸 Upload image - URL générée:', {
+                        objectPath,
+                        minioPublicUrl,
+                        directUrl: response.data.directUrl
+                    });
                 }
             }
+            
+            console.log('✅ Upload final result:', response.data);
             return response.data;
         } catch (error) {
+            console.error('❌ Erreur upload image:', error);
             this.handleError(error);
         }
     }
@@ -295,15 +367,13 @@ class RecipesService {
      */
     async getAllFichiers(recetteId) {
         try {
-            // Appeler directement ms-persistance pour éviter timeout
             const response = await axios.get(`${PERSISTENCE_URL}/recettes/${recetteId}/fichiers`, {
                 headers: this.getAuthHeader()
             });
-            // Normaliser les URLs téléchargement
             return (response.data || []).map(fichier => ({
                 ...fichier,
                 urlTelechargement: fichier.urlTelechargement ? normalizeImageUrl(fichier.urlTelechargement) : fichier.urlTelechargement,
-                urlStream: fichier.urlStream ? `${API_URL}${fichier.urlStream}` : fichier.urlStream
+                urlStream: this._buildStreamUrl(fichier.urlStream)
             }));
         } catch (error) {
             this.handleError(error);
@@ -320,48 +390,62 @@ class RecipesService {
      */
     async getImages(recetteId) {
         try {
+            console.log('🔍 Récupération images pour recette', recetteId);
+            console.log('📡 PERSISTENCE_URL:', PERSISTENCE_URL);
+            
             // Cache pour éviter des appels répétés et améliorer la réactivité
             if (this.imagesCache.has(recetteId)) {
+                console.log('✅ Images trouvées dans cache');
                 return this.imagesCache.get(recetteId);
             }
-
-            // Appeler directement ms-persistance pour éviter timeout de ms-recette
+            
             const response = await axios.get(`${PERSISTENCE_URL}/recettes/${recetteId}/fichiers/images`, {
                 headers: this.getAuthHeader()
             });
             
-            // Utiliser UNIQUEMENT urlStream (backend proxy) pour contourner les problèmes de CORS et permissions MinIO Railway
-            const normalizeStreamUrl = (u) => {
-                if (!u) return u;
-                if (u.startsWith('http')) return u;
-                const cleaned = u.replace(/^\/+/, '');
-                if (cleaned.startsWith('api/persistance/')) {
-                    return `${PERSISTENCE_URL}/${cleaned.replace(/^api\/persistance\//, '')}`;
-                }
-                return `${PERSISTENCE_URL}/${cleaned}`;
-            };
-
+            console.log('📥 Réponse brute backend images:', JSON.stringify(response.data, null, 2));
+            
             const processed = (response.data || []).map(image => {
-                // Construire l'URL de streaming via ms-persistance (authentifié, pas de CORS, toujours accessible)
-                const streamPath = image.urlStream || `/recettes/${recetteId}/fichiers/images/${image.id}/stream`;
-                const directUrl = normalizeImageUrl(normalizeStreamUrl(image.directUrl));
-                const urlStream = normalizeImageUrl(normalizeStreamUrl(streamPath));
-                const urlTelechargement = normalizeImageUrl(normalizeStreamUrl(image.urlTelechargement));
-                const fallback = image.url || image.cheminFichier;
-                const displayUrl = directUrl || urlStream || urlTelechargement || normalizeStreamUrl(fallback);
-                
+                // Construire l'URL de streaming en utilisant le helper
+                const streamUrl = this._buildStreamUrl(image.urlStream);
+
+                // Conserver l'URL de téléchargement mais ne pas la réécrire (signature présignée dépend de l'hôte)
+                const presignedUrl = image.urlTelechargement || null;
+
+                // Générer une URL publique directe (si bucket public) à partir de l'URL MinIO
+                // normalizeImageUrl s'occupe de remplacer minio:9000 -> Railway et de retirer la query string
+                const directPublicUrl = presignedUrl ? normalizeImageUrl(presignedUrl) : null;
+
+                // Préférer le streaming via backend pour éviter les problèmes d'hôte minio:9000
+                const displayUrl = streamUrl || directPublicUrl || presignedUrl || null;
+
+                console.log('📸 Image processée:', {
+                    id: image.id,
+                    nom: image.nom,
+                    urlStreamRaw: image.urlStream,
+                    streamUrl,
+                    presignedUrl: presignedUrl?.substring(0, 100) + '...',
+                    directPublicUrl,
+                    displayUrl: displayUrl?.substring(0, 100) + '...',
+                    cheminFichier: image.cheminFichier
+                });
+
                 return {
                     ...image,
-                    directUrl,
-                    urlStream,
-                    urlTelechargement,
+                    directUrl: directPublicUrl,
+                    urlStream: streamUrl,
+                    urlTelechargement: presignedUrl,
                     displayUrl
                 };
             });
             
             if (processed.length > 0) {
                 this.imagesCache.set(recetteId, processed);
+                console.log('✅', processed.length, 'image(s) mise(s) en cache');
+            } else {
+                console.warn('⚠️ Aucune image trouvée pour cette recette');
             }
+            
             return processed;
         } catch (error) {
             console.error('[RecipeService] Erreur getImages:', error);
@@ -374,15 +458,13 @@ class RecipesService {
      */
     async getDocuments(recetteId) {
         try {
-            // Appelle via ms-recette (API_URL) qui proxie vers ms-persistance
             const response = await axios.get(`${API_URL}/${recetteId}/fichiers/documents`, {
                 headers: this.getAuthHeader()
             });
-            // Normaliser les URLs téléchargement et stream
             return (response.data || []).map(document => ({
                 ...document,
                 urlTelechargement: document.urlTelechargement ? normalizeImageUrl(document.urlTelechargement) : document.urlTelechargement,
-                urlStream: document.urlStream ? `${API_URL}${document.urlStream}` : document.urlStream
+                urlStream: this._buildStreamUrl(document.urlStream)
             }));
         } catch (error) {
             this.handleError(error);
@@ -420,12 +502,11 @@ class RecipesService {
                     headers: this.getAuthHeader()
                 }
             );
-            // Normaliser les URLs
             if (response.data?.urlTelechargement) {
                 response.data.urlTelechargement = normalizeImageUrl(response.data.urlTelechargement);
             }
             if (response.data?.urlStream) {
-                response.data.urlStream = `${API_URL}${response.data.urlStream}`;
+                response.data.urlStream = this._buildStreamUrl(response.data.urlStream);
             }
             return response.data;
         } catch (error) {
@@ -438,11 +519,23 @@ class RecipesService {
      */
     async deleteFichier(recetteId, fichierId) {
         try {
+            console.log('🗑️ Suppression fichier:', { recetteId, fichierId });
+            console.log('📡 URL appelée:', `${API_URL}/${recetteId}/fichiers/${fichierId}`);
+            
             // Appelle via ms-recette (API_URL) qui proxie vers ms-persistance
             await axios.delete(`${API_URL}/${recetteId}/fichiers/${fichierId}`, {
                 headers: this.getAuthHeader()
             });
+            
+            console.log('✅ Fichier supprimé avec succès');
         } catch (error) {
+            console.error('❌ Erreur lors de la suppression:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                message: error.message,
+                data: error.response?.data,
+                url: error.config?.url
+            });
             this.handleError(error);
         }
     }
