@@ -4,7 +4,7 @@ import feedbackService from './feedback.service';
 
 const API_URL = process.env.REACT_APP_RECIPE_SERVICE_URL || 'http://localhost:8093/api/recettes';
 const PERSISTENCE_URL = process.env.REACT_APP_PERSISTENCE_SERVICE_URL || 'http://localhost:8090/api/persistance';
-const RECOMMENDATION_URL = process.env.REACT_APP_RECOMMENDATION_SERVICE_URL || 'http://localhost:8093/api';
+const RECOMMENDATION_URL = process.env.REACT_APP_RECOMMENDATION_SERVICE_URL || 'http://localhost:8095/api';
 
 class RecipesService {
     constructor() {
@@ -449,9 +449,7 @@ class RecipesService {
      */
     async getAllAliments() {
         try {
-            // TODO: Corriger l'endpoint - actuellement /api/persistance/aliments retourne 404
-            // Essayer d'autres endpoints: /api/aliments, /api/persistance/alimentss, etc.
-            const response = await axios.get(`/api/aliments`, {
+            const response = await axios.get(`${PERSISTENCE_URL}/aliments`, {
                 headers: this.getAuthHeader()
             });
             return response.data;

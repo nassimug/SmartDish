@@ -4,31 +4,26 @@ import {
     Check,
     ChefHat,
     Clock,
-    Edit,
+    Eye,
+    EyeOff,
     Flame,
-    Heart,
+    Lock,
     Mail,
-    MapPin,
-    Phone,
-    RefreshCw,
     Save,
-    Settings,
     Sparkles,
     Star,
     Trophy,
     User,
-    X,
-    Zap
+    X
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import activityService from '../../services/api/activity.service';
+import PreferencesModal from '../../components/PreferencesModal/PreferencesModal';
 import authService from '../../services/api/auth.service';
-import userPreferencesService from '../../services/userPreferences.service';
-import { RECIPE_PLACEHOLDER_URL } from '../../utils/RecipePlaceholder';
-// Notifications gérées côté backend (pas d'appel direct depuis le frontend)
+import preferencesService from '../../services/api/preferences.service';
 import recipesService from '../../services/api/recipe.service';
+import { RECIPE_PLACEHOLDER_URL } from '../../utils/RecipePlaceholder';
 import { normalizeImageUrl } from '../../utils/imageUrlHelper';
 import './AccountPage.css';
 import './modal-styles.css';
@@ -45,10 +40,37 @@ export default function AccountPage() {
     const [rejectedRecipes, setRejectedRecipes] = useState([]);
     const [myRecipes, setMyRecipes] = useState([]);
 
+    // États pour les préférences alimentaires
+    const [allRegimes, setAllRegimes] = useState([]);
+    const [allAllergenes, setAllAllergenes] = useState([]);
+    const [allTypesCuisine, setAllTypesCuisine] = useState([]);
+    const [userPreferences, setUserPreferences] = useState({
+        regimesIds: [],
+        allergenesIds: [],
+        typesCuisinePreferesIds: []
+    });
+    const [showPreferencesModal, setShowPreferencesModal] = useState(false);
+    const [currentModalType, setCurrentModalType] = useState(null);
+    const [preferencesLoading, setPreferencesLoading] = useState(false);
+
+    // États pour la modification du mot de passe
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [passwordData, setPasswordData] = useState({
+        oldPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+    });
+    const [showOldPassword, setShowOldPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [passwordError, setPasswordError] = useState('');
+    const [passwordSuccess, setPasswordSuccess] = useState('');
+
     // Gestion des images cassées
     const handleImgError = (e) => {
         e.target.src = RECIPE_PLACEHOLDER_URL;
     };
+
     const [validationLoading, setValidationLoading] = useState(false);
     const [validationError, setValidationError] = useState('');
     const [validationSuccess, setValidationSuccess] = useState('');
@@ -57,18 +79,14 @@ export default function AccountPage() {
     const [rejectRecipeId, setRejectRecipeId] = useState(null);
     const [validateRecipeId, setValidateRecipeId] = useState(null);
     const [rejectMotif, setRejectMotif] = useState('');
-    const [recentActivity, setRecentActivity] = useState([]);
-    const [activityLoading, setActivityLoading] = useState(false);
+
     const [formData, setFormData] = useState({
         nom: '',
         prenom: '',
-        email: '',
-        telephone: '',
-        localisation: '',
-        bio: ''
+        email: ''
     });
 
-    // Données fictives pour les stats (à remplacer par des vraies données API)
+    // Données fictives pour les stats
     const stats = {
         recipesCooked: 47,
         favoriteRecipes: 23,
@@ -76,58 +94,80 @@ export default function AccountPage() {
         averageRating: 4.6,
     };
 
-    const preferences = {
-        dietaryRestrictions: ["Végétarien"],
-        allergies: ["Fruits à coque"],
-        cuisineTypes: ["Italien", "Français", "Asiatique"],
-        skillLevel: "Intermédiaire",
-        cookingTime: "30-45 min",
+    // Charger les données de référence au montage
+    useEffect(() => {
+        loadReferenceData();
+    }, []);
+
+    const loadReferenceData = async () => {
+        try {
+            const [regimes, allergenes, cuisines] = await Promise.all([
+                preferencesService.getAllRegimes(),
+                preferencesService.getAllAllergenes(),
+                preferencesService.getAllTypesCuisine()
+            ]);
+
+            setAllRegimes(regimes);
+            setAllAllergenes(allergenes);
+            setAllTypesCuisine(cuisines);
+        } catch (error) {
+            console.error('❌ Erreur chargement données de référence:', error);
+        }
     };
 
-    // Charger les activités récentes au montage du composant
+    // Charger les préférences de l'utilisateur
     useEffect(() => {
-        if (user?.id) {
-            loadRecentActivities();
+        if (user) {
+            setUserPreferences({
+                regimesIds: user.regimesIds || [],
+                allergenesIds: user.allergenesIds || [],
+                typesCuisinePreferesIds: user.typesCuisinePreferesIds || []
+            });
         }
-    }, [user?.id]);
+    }, [user]);
 
-    // Recharger les activités quand on change vers l'onglet "activity"
-    useEffect(() => {
-        if (activeTab === 'activity' && user?.id) {
-            loadRecentActivities();
-        }
-    }, [activeTab, user?.id]);
+    // Handlers pour les préférences
+    const openPreferencesModal = (type) => {
+        setCurrentModalType(type);
+        setShowPreferencesModal(true);
+    };
 
-    const loadRecentActivities = async () => {
-        if (!user?.id) return;
-
+    const handleSavePreferences = async (selectedIds) => {
         try {
-            setActivityLoading(true);
-            const activities = await activityService.getRecentActivites(user.id);
-            
-            // Formater les activités pour l'affichage
-            const formattedActivities = activities.map(activityService.formatActivityForDisplay);
-            setRecentActivity(formattedActivities);
+            setPreferencesLoading(true);
+
+            const updateData = {
+                ...userPreferences,
+                [`${currentModalType}Ids`]: selectedIds
+            };
+
+            await authService.updatePreferences(user.id, updateData);
+
+            // Mettre à jour l'état local
+            setUserPreferences(updateData);
+
+            // Mettre à jour le contexte utilisateur
+            updateUser({
+                ...user,
+                ...updateData
+            });
+
+            setShowPreferencesModal(false);
+            alert('✅ Préférences mises à jour avec succès !');
         } catch (error) {
-            console.error('Erreur lors du chargement des activités:', error);
-            // En cas d'erreur, garder les données fictives
+            console.error('❌ Erreur sauvegarde préférences:', error);
+            alert('❌ Erreur: ' + error.message);
         } finally {
-            setActivityLoading(false);
+            setPreferencesLoading(false);
         }
     };
 
     useEffect(() => {
         if (user) {
-            // Charger les préférences locales (bio, telephone, localisation)
-            const preferences = userPreferencesService.getPreferences(user.id);
-            
             setFormData({
                 nom: user.nom || '',
                 prenom: user.prenom || '',
-                email: user.email || '',
-                telephone: preferences.telephone || user.telephone || '',
-                localisation: preferences.localisation || user.localisation || '',
-                bio: preferences.bio || user.bio || 'Passionnée de cuisine depuis toujours, j\'adore découvrir de nouvelles recettes et partager mes créations culinaires.'
+                email: user.email || ''
             });
         }
     }, [user]);
@@ -139,10 +179,9 @@ export default function AccountPage() {
         }
     }, [isAdmin]);
 
-    // Enrichir les recettes avec leurs images depuis l'endpoint dedié
     const enrichRecipesWithImages = async (recipes) => {
         if (!recipes || recipes.length === 0) return recipes;
-        
+
         try {
             const enrichedRecipes = await Promise.all(
                 recipes.map(async (recipe) => {
@@ -150,10 +189,6 @@ export default function AccountPage() {
                         const images = await recipesService.getImages(recipe.id);
                         if (images && images.length > 0) {
                             const firstImage = images[0];
-                            // Préférence: directUrl > urlStream > urlTelechargement > url
-                            // directUrl: Direct MinIO URL without presigned params (PREFERRED - most reliable)
-                            // urlStream: Backend inline streaming endpoint (fallback)
-                            // urlTelechargement: Presigned URL MinIO (fallback - may have signature issues)
                             let imageUrl = firstImage.directUrl || firstImage.urlStream || firstImage.urlTelechargement || firstImage.url || firstImage.cheminFichier;
                             if (imageUrl && !imageUrl.startsWith('http')) {
                                 imageUrl = normalizeImageUrl(imageUrl);
@@ -177,7 +212,6 @@ export default function AccountPage() {
         try {
             setLoading(true);
             setValidationError('');
-            console.log('🔄 [AccountPage] Chargement séquentiel des listes (attente/validées/rejetées)');
 
             const pendingRaw = await recipesService.getRecettesEnAttente();
             const validatedRaw = await recipesService.getRecettesValidees();
@@ -191,7 +225,7 @@ export default function AccountPage() {
             setValidatedRecipes(validatedEnriched || []);
             setRejectedRecipes(rejectedEnriched || []);
         } catch (error) {
-            console.error('❌ [AccountPage] Erreur chargement listes validation:', error);
+            console.error('❌ Erreur chargement listes validation:', error);
             setValidationError(error.message || 'Erreur lors du chargement des recettes');
             setPendingRecipes([]);
             setValidatedRecipes([]);
@@ -204,10 +238,7 @@ export default function AccountPage() {
     const loadMyRecipes = useCallback(async () => {
         try {
             setLoading(true);
-            console.log('🔍 Chargement des recettes pour utilisateur:', user.id);
             const recipes = await recipesService.getRecettesByUtilisateur(user.id);
-            console.log('📦 Recettes utilisateur reçues:', recipes);
-            console.log('📊 Nombre de recettes:', recipes?.length || 0);
             const enrichedRecipes = await enrichRecipesWithImages(recipes);
             setMyRecipes(enrichedRecipes || []);
         } catch (error) {
@@ -218,14 +249,12 @@ export default function AccountPage() {
         }
     }, [user?.id]);
 
-    // Charger initialement les listes validation pour admin
     useEffect(() => {
         if (isAdmin) {
             loadValidationLists();
         }
     }, [isAdmin, loadValidationLists]);
 
-    // Rafraîchir la liste affichée uniquement si elle est vide quand on change d'onglet
     useEffect(() => {
         if (!isAdmin || activeTab !== 'validation') return;
         if (activeValidationTab === 'en_attente' && pendingRecipes.length === 0) loadValidationLists();
@@ -246,12 +275,10 @@ export default function AccountPage() {
             loadMyRecipes();
         }
     }, [isAdmin, activeTab, user?.id, loadMyRecipes]);
-    
-    // Recharger les recettes quand on revient sur la page
+
     useEffect(() => {
         const handleFocus = () => {
             if (!isAdmin && activeTab === 'mes_recettes' && user?.id) {
-                console.log('🔄 Rechargement des recettes au retour sur la page');
                 loadMyRecipes();
             }
         };
@@ -268,106 +295,92 @@ export default function AccountPage() {
     };
 
     const handleSave = async () => {
-        // ⚠️ PROBLÈME BACKEND IDENTIFIÉ ⚠️
-        // Le service ms-utilisateur ne transmet pas correctement l'email à ms-persistance
-        // Erreur backend : ms-persistance retourne "L'email est obligatoire"
-        // Détails dans les logs : docker logs smartdish-ms-utilisateur
-        
-        alert('⚠️ Modification du profil temporairement désactivée\n\n' +
-              'Problème identifié :\n' +
-              '• Le backend ms-utilisateur ne transmet pas correctement les données à ms-persistance\n' +
-              '• ms-persistance retourne : "L\'email est obligatoire"\n\n' +
-              'Solution :\n' +
-              '• Ce problème doit être corrigé dans le code backend Java\n' +
-              '• Fichier concerné : PersistanceClient.java ligne 146\n\n' +
-              'En attendant, vos informations (bio, téléphone, localisation) sont sauvegardées localement.');
-        
-        // Sauvegarder au moins les préférences locales
-        if (user?.id) {
-            userPreferencesService.savePreferences(user.id, {
-                bio: formData.bio,
-                telephone: formData.telephone,
-                localisation: formData.localisation
-            });
-        }
-        
-        return;
-        
-        /* Code original conservé pour référence
-        setLoading(true);
         try {
-            console.log('🔄 Données complètes:', formData);
-            
-            // Le backend ne supporte que: nom, prenom, email
-            // Les champs bio, telephone, localisation ne sont pas dans la table utilisateurs
-            // IMPORTANT: Ne PAS envoyer de champs vides/null - le backend peut les rejeter
-            const updateData = {};
-            
-            if (formData.nom && formData.nom.trim()) {
-                updateData.nom = formData.nom.trim();
-            }
-            if (formData.prenom && formData.prenom.trim()) {
-                updateData.prenom = formData.prenom.trim();
-            }
-            if (formData.email && formData.email.trim()) {
-                updateData.email = formData.email.trim();
-            }
-            
-            console.log('📤 Données envoyées au backend:', updateData);
-            console.log('👤 User ID:', user.id);
-            console.log('🔑 Token présent:', !!authService.getToken());
-            
-            // Appel API pour mettre à jour l'utilisateur
+            setLoading(true);
+
+            // Préparer les données à envoyer
+            const updateData = {
+                nom: formData.nom,
+                prenom: formData.prenom,
+                email: formData.email
+            };
+
+            console.log('📝 Mise à jour du profil:', updateData);
+
+            // Appeler le service pour mettre à jour
             const updatedUser = await authService.updateUser(user.id, updateData);
-            console.log('✅ Utilisateur mis à jour:', updatedUser);
-            
-            // Sauvegarder les préférences locales (bio, telephone, localisation)
-            userPreferencesService.savePreferences(user.id, {
-                bio: formData.bio,
-                telephone: formData.telephone,
-                localisation: formData.localisation
-            });
-            
-            // Mettre à jour le contexte utilisateur avec les données complètes
-            updateUser({
-                ...updatedUser,
-                bio: formData.bio,
-                telephone: formData.telephone,
-                localisation: formData.localisation
-            });
-            
+
+            // Mettre à jour le contexte utilisateur
+            updateUser(updatedUser);
+
+            // Désactiver le mode édition
             setIsEditing(false);
-            alert('✅ Profil mis à jour avec succès !\n\nNote: Les champs bio, téléphone et localisation sont stockés localement (le backend ne les supporte pas encore).');
+
+            alert('✅ Profil mis à jour avec succès !');
         } catch (error) {
-            console.error('❌ Erreur lors de la mise à jour:', error);
-            console.error('❌ Réponse complète:', error.response);
-            
-            let errorMessage = 'Une erreur interne est survenue';
-            
-            if (error.response) {
-                // Erreur avec réponse du serveur
-                errorMessage = error.response.data?.message || error.response.data?.error || errorMessage;
-                
-                if (error.response.status === 401) {
-                    errorMessage = 'Session expirée. Veuillez vous reconnecter.';
-                } else if (error.response.status === 403) {
-                    errorMessage = 'Accès refusé. Token invalide.';
-                } else if (error.response.status === 500) {
-                    errorMessage = 'Erreur serveur. Vérifiez les logs backend.';
-                }
-            } else if (error.request) {
-                // Pas de réponse du serveur
-                errorMessage = 'Impossible de contacter le serveur';
-            } else {
-                // Autre erreur
-                errorMessage = error.message;
-            }
-            
-            alert('❌ Erreur: ' + errorMessage);
+            console.error('❌ Erreur mise à jour profil:', error);
+            alert('❌ Erreur: ' + error.message);
         } finally {
             setLoading(false);
         }
-        */
+    };
+
+    const handlePasswordChange = (e) => {
+        const { name, value } = e.target;
+        setPasswordData(prev => ({
+            ...prev,
+            [name]: value
+        }));
+        setPasswordError('');
+    };
+
+    const handlePasswordSubmit = async () => {
+        // Validation
+        if (!passwordData.oldPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+            setPasswordError('Tous les champs sont obligatoires');
+            return;
+        }
+
+        if (passwordData.newPassword.length < 8) {
+            setPasswordError('Le nouveau mot de passe doit contenir au moins 8 caractères');
+            return;
+        }
+
+        if (passwordData.newPassword !== passwordData.confirmPassword) {
+            setPasswordError('Les nouveaux mots de passe ne correspondent pas');
+            return;
+        }
+
+        if (passwordData.oldPassword === passwordData.newPassword) {
+            setPasswordError('Le nouveau mot de passe doit être différent de l\'ancien');
+            return;
+        }
+
+        try {
+            setLoading(true);
+            setPasswordError('');
+
+            // Appel API pour changer le mot de passe
+            await authService.changePassword(
+                user.id,
+                passwordData.oldPassword,
+                passwordData.newPassword
+            );
+
+            setPasswordSuccess('✅ Mot de passe modifié avec succès !');
+
+            // Fermer le modal après 2 secondes
+            setTimeout(() => {
+                setShowPasswordModal(false);
+                setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
+                setPasswordSuccess('');
+            }, 2000);
+        } catch (error) {
+            console.error('❌ Erreur modification mot de passe:', error);
+            setPasswordError(error.message || 'Erreur lors de la modification du mot de passe');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleValidateRecipe = (recetteId) => {
@@ -382,40 +395,23 @@ export default function AccountPage() {
             setValidationSuccess('');
 
             const recipe = pendingRecipes.find(r => r.id === validateRecipeId);
-            console.log('🔍 Recette à valider:', recipe);
-            console.log('👤 Utilisateur ID de la recette:', recipe?.utilisateurId);
-            
             await recipesService.validerRecette(validateRecipeId);
-            console.log('✅ Recette validée côté backend');
 
-            // Ne plus créer de notification manuellement côté frontend (CORS)
-            // Le backend persistance crée automatiquement la notification.
-            // On déclenche simplement un rafraîchissement côté Navigation.
-            if (!recipe?.utilisateurId) {
-                console.warn('⚠️ utilisateurId manquant pour rechargement des notifications');
-            }
-            
-            // Forcer le rechargement des notifications dans Navigation
             window.dispatchEvent(new Event('reloadNotifications'));
 
             setValidationSuccess('Recette validée avec succès !');
             setShowValidateModal(false);
             setValidateRecipeId(null);
 
-            // Mise à jour immédiate des listes pour éviter d'attendre le rechargement
             setPendingRecipes((prev) => prev.filter((r) => r.id !== validateRecipeId));
             if (recipe) {
                 setValidatedRecipes((prev) => [{ ...recipe, statut: 'VALIDEE' }, ...prev]);
             }
-            
-            // Ne pas recharger immédiatement toutes les listes pour éviter la latence.
-            // Les compteurs sont mis à jour de manière optimiste ci-dessus.
-            // Rafraîchissement léger en arrière-plan après un court délai.
+
             setTimeout(() => {
                 loadValidationLists();
             }, 1500);
-            
-            // Afficher le message et masquer après délai
+
             setTimeout(() => {
                 setValidationSuccess('');
             }, 3000);
@@ -438,23 +434,15 @@ export default function AccountPage() {
             setValidationError('Le motif de rejet est obligatoire');
             return;
         }
-        
+
         try {
             setValidationLoading(true);
             setValidationError('');
             setValidationSuccess('');
 
             const recipe = pendingRecipes.find(r => r.id === rejectRecipeId);
-            console.log('🔍 Recette à rejeter:', recipe);
-            console.log('👤 Utilisateur ID de la recette:', recipe?.utilisateurId);
-            
             await recipesService.rejeterRecette(rejectRecipeId, rejectMotif.trim());
-            console.log('✅ Recette rejetée côté backend');
 
-            // Ne plus créer de notification manuellement côté frontend (CORS)
-            // Le backend persistance crée automatiquement la notification.
-
-            // Forcer le rechargement des notifications dans Navigation
             window.dispatchEvent(new Event('reloadNotifications'));
 
             setValidationSuccess('Recette rejetée');
@@ -462,20 +450,15 @@ export default function AccountPage() {
             setRejectRecipeId(null);
             setRejectMotif('');
 
-            // Mise à jour immédiate des listes pour éviter d'attendre le rechargement
             setPendingRecipes((prev) => prev.filter((r) => r.id !== rejectRecipeId));
             if (recipe) {
                 setRejectedRecipes((prev) => [{ ...recipe, statut: 'REJETEE' }, ...prev]);
             }
-            
-            // Ne pas recharger immédiatement toutes les listes pour éviter la latence.
-            // Les compteurs sont mis à jour de manière optimiste ci-dessus.
-            // Rafraîchissement léger en arrière-plan après un court délai.
+
             setTimeout(() => {
                 loadValidationLists();
             }, 1500);
-            
-            // Afficher le message et masquer après délai
+
             setTimeout(() => {
                 setValidationSuccess('');
             }, 3000);
@@ -490,11 +473,6 @@ export default function AccountPage() {
     const getInitials = () => {
         if (!user) return 'U';
         return `${user.prenom?.[0] || ''}${user.nom?.[0] || ''}`.toUpperCase();
-    };
-
-    const getJoinDate = () => {
-        // À remplacer par la vraie date d'inscription de l'API
-        return 'Janvier 2024';
     };
 
     return (
@@ -515,26 +493,22 @@ export default function AccountPage() {
                             className={`tab-trigger ${activeTab === 'profile' ? 'active' : ''}`}
                             onClick={() => setActiveTab('profile')}
                         >
+                            <User className="icon-xs" />
                             Profil
                         </button>
                         <button
                             className={`tab-trigger ${activeTab === 'preferences' ? 'active' : ''}`}
                             onClick={() => setActiveTab('preferences')}
                         >
+                            <Star className="icon-xs" />
                             Préférences
-                        </button>
-                        <button
-                            className={`tab-trigger ${activeTab === 'activity' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('activity')}
-                        >
-                            Activité
                         </button>
                         {!isAdmin && (
                             <button
                                 className={`tab-trigger ${activeTab === 'mes_recettes' ? 'active' : ''}`}
                                 onClick={() => setActiveTab('mes_recettes')}
                             >
-                                <ChefHat className="icon-xs" style={{ marginRight: '0.5rem' }} />
+                                <ChefHat className="icon-xs" />
                                 Mes recettes
                             </button>
                         )}
@@ -543,7 +517,7 @@ export default function AccountPage() {
                                 className={`tab-trigger ${activeTab === 'validation' ? 'active' : ''}`}
                                 onClick={() => setActiveTab('validation')}
                             >
-                                <AlertCircle className="icon-xs" style={{ marginRight: '0.5rem' }} />
+                                <AlertCircle className="icon-xs" />
                                 Validation ({pendingRecipes.length})
                             </button>
                         )}
@@ -551,16 +525,17 @@ export default function AccountPage() {
                             className={`tab-trigger ${activeTab === 'settings' ? 'active' : ''}`}
                             onClick={() => setActiveTab('settings')}
                         >
-                            Paramètres
+                            <Lock className="icon-xs" />
+                            Sécurité
                         </button>
                     </div>
 
                     {/* Profile Tab */}
                     {activeTab === 'profile' && (
                         <div className="tab-content">
-                            <div className="profile-grid">
+                            <div className="profile-grid-new">
                                 {/* Profile Card */}
-                                <div className="card profile-card">
+                                <div className="card profile-card-new">
                                     <div className="card-header">
                                         <h3 className="card-title">Informations personnelles</h3>
                                         <button
@@ -577,7 +552,7 @@ export default function AccountPage() {
                                                 </>
                                             ) : (
                                                 <>
-                                                    <Edit className="icon-sm" />
+                                                    <User className="icon-sm" />
                                                     Modifier
                                                 </>
                                             )}
@@ -586,9 +561,9 @@ export default function AccountPage() {
 
                                     <div className="card-content">
                                         {/* Avatar */}
-                                        <div className="avatar-section">
+                                        <div className="avatar-section-new">
                                             <div className="avatar-wrapper">
-                                                <div className="avatar">
+                                                <div className="avatar-large">
                                                     <span className="avatar-fallback">{getInitials()}</span>
                                                 </div>
                                                 {isEditing && (
@@ -597,18 +572,16 @@ export default function AccountPage() {
                                                     </button>
                                                 )}
                                             </div>
-                                            <div>
-                                                <h3 className="user-name">
+                                            <div className="user-info-section">
+                                                <h3 className="user-name-large">
                                                     {user?.prenom} {user?.nom}
                                                 </h3>
-                                                <p className="user-join-date">
-                                                    Membre depuis {getJoinDate()}
-                                                </p>
+                                                <p className="user-email">{user?.email}</p>
                                             </div>
                                         </div>
 
                                         {/* Form Fields */}
-                                        <div className="form-grid">
+                                        <div className="form-grid-new">
                                             <div className="form-group">
                                                 <label htmlFor="prenom" className="form-label">Prénom</label>
                                                 <div className="input-wrapper">
@@ -641,7 +614,7 @@ export default function AccountPage() {
                                                 </div>
                                             </div>
 
-                                            <div className="form-group">
+                                            <div className="form-group form-group-full">
                                                 <label htmlFor="email" className="form-label">Email</label>
                                                 <div className="input-wrapper">
                                                     <Mail className="input-icon" />
@@ -656,60 +629,12 @@ export default function AccountPage() {
                                                     />
                                                 </div>
                                             </div>
-
-                                            <div className="form-group">
-                                                <label htmlFor="telephone" className="form-label">Téléphone</label>
-                                                <div className="input-wrapper">
-                                                    <Phone className="input-icon" />
-                                                    <input
-                                                        type="tel"
-                                                        id="telephone"
-                                                        name="telephone"
-                                                        value={formData.telephone}
-                                                        onChange={handleChange}
-                                                        disabled={!isEditing}
-                                                        className="form-input"
-                                                        placeholder="+33 6 12 34 56 78"
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="form-group form-group-full">
-                                                <label htmlFor="localisation" className="form-label">Localisation</label>
-                                                <div className="input-wrapper">
-                                                    <MapPin className="input-icon" />
-                                                    <input
-                                                        type="text"
-                                                        id="localisation"
-                                                        name="localisation"
-                                                        value={formData.localisation}
-                                                        onChange={handleChange}
-                                                        disabled={!isEditing}
-                                                        className="form-input"
-                                                        placeholder="Paris, France"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="form-group">
-                                            <label htmlFor="bio" className="form-label">Bio</label>
-                                            <textarea
-                                                id="bio"
-                                                name="bio"
-                                                value={formData.bio}
-                                                onChange={handleChange}
-                                                disabled={!isEditing}
-                                                rows={3}
-                                                className="form-textarea"
-                                                placeholder="Parlez-nous de votre passion pour la cuisine..."
-                                            />
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Stats Card */}
-                                <div className="card stats-card">
+                                <div className="card stats-card-new">
                                     <div className="card-header">
                                         <h3 className="card-title">
                                             <Trophy className="icon-sm text-primary" />
@@ -718,44 +643,54 @@ export default function AccountPage() {
                                     </div>
 
                                     <div className="card-content">
-                                        <div className="stat-highlight">
-                                            <div className="stat-value">{stats.recipesCooked}</div>
-                                            <div className="stat-label">Recettes cuisinées</div>
-                                        </div>
-
-                                        <div className="stats-grid">
-                                            <div className="stat-item">
-                                                <div className="stat-number">{stats.favoriteRecipes}</div>
-                                                <div className="stat-text">Favoris</div>
+                                        <div className="stats-grid-new">
+                                            <div className="stat-card">
+                                                <div className="stat-icon primary">
+                                                    <ChefHat />
+                                                </div>
+                                                <div className="stat-value">{stats.recipesCooked}</div>
+                                                <div className="stat-label">Recettes cuisinées</div>
                                             </div>
-                                            <div className="stat-item">
-                                                <div className="stat-number">{stats.averageRating}</div>
-                                                <div className="stat-text">Note moyenne</div>
-                                            </div>
-                                        </div>
 
-                                        <div className="stat-time">
-                                            <div className="stat-number">{stats.totalCookingTime}</div>
-                                            <div className="stat-text">Temps de cuisine total</div>
+                                            <div className="stat-card">
+                                                <div className="stat-icon favorite">
+                                                    <Star />
+                                                </div>
+                                                <div className="stat-value">{stats.favoriteRecipes}</div>
+                                                <div className="stat-label">Favoris</div>
+                                            </div>
+
+                                            <div className="stat-card">
+                                                <div className="stat-icon success">
+                                                    <Trophy />
+                                                </div>
+                                                <div className="stat-value">{stats.averageRating}</div>
+                                                <div className="stat-label">Note moyenne</div>
+                                            </div>
+
+                                            <div className="stat-card">
+                                                <div className="stat-icon info">
+                                                    <Clock />
+                                                </div>
+                                                <div className="stat-value-small">{stats.totalCookingTime}</div>
+                                                <div className="stat-label">Temps total</div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* CTA Créer une recette */}
-                                <div className="card create-recipe-cta">
-                                    <div className="card-content">
-                                        <div className="cta-content">
-                                            <div className="cta-icon">
-                                                <ChefHat className="icon-md" />
-                                            </div>
-                                            <div className="cta-text">
-                                                <h3 className="cta-title">Proposer une recette</h3>
-                                                <p className="cta-desc">Partagez votre recette avec la communauté ! Elle sera validée par l'équipe admin avant publication.</p>
-                                            </div>
-                                            <Link to="/recette/nouvelle" className="cta-btn">
-                                                Créer ma recette
-                                            </Link>
-                                        </div>
+                                <div className="create-recipe-cta-new">
+                                    <div className="cta-icon-bg">
+                                        <ChefHat className="icon-lg" />
+                                    </div>
+                                    <div className="cta-content-new">
+                                        <h3 className="cta-title">Proposer une recette</h3>
+                                        <p className="cta-desc">Partagez votre recette avec la communauté ! Elle sera validée par l'équipe admin avant publication.</p>
+                                        <Link to="/recette/nouvelle" className="cta-btn-new">
+                                            <Sparkles className="icon-sm" />
+                                            Créer ma recette
+                                        </Link>
                                     </div>
                                 </div>
                             </div>
@@ -765,164 +700,97 @@ export default function AccountPage() {
                     {/* Preferences Tab */}
                     {activeTab === 'preferences' && (
                         <div className="tab-content">
-                            <div className="preferences-grid">
-                                <div className="card">
+                            <div className="preferences-grid-new">
+                                <div className="card preferences-card-new">
                                     <div className="card-header">
-                                        <h3 className="card-title">Préférences alimentaires</h3>
+                                        <h3 className="card-title">
+                                            <Star className="icon-sm" />
+                                            Préférences alimentaires
+                                        </h3>
+                                        <p className="card-description">Personnalisez vos préférences pour recevoir des suggestions adaptées</p>
                                     </div>
                                     <div className="card-content">
-                                        <div className="preference-section">
-                                            <label className="preference-label">Régime alimentaire</label>
+                                        {/* Régimes alimentaires */}
+                                        <div className="preference-section-new">
+                                            <div className="preference-header">
+                                                <label className="preference-label">Régime alimentaire</label>
+                                                <button
+                                                    className="btn btn-outline btn-sm"
+                                                    onClick={() => openPreferencesModal('regimes')}
+                                                >
+                                                    {userPreferences.regimesIds?.length > 0 ? 'Modifier' : '+ Ajouter'}
+                                                </button>
+                                            </div>
                                             <div className="badge-list">
-                                                {preferences.dietaryRestrictions.map((restriction) => (
-                                                    <span key={restriction} className="badge badge-primary">
-                            {restriction}
-                          </span>
-                                                ))}
-                                                <button className="btn btn-outline btn-sm">+ Ajouter</button>
+                                                {userPreferences.regimesIds?.length > 0 ? (
+                                                    userPreferences.regimesIds.map((regimeId) => {
+                                                        const regime = allRegimes.find(r => r.id === regimeId);
+                                                        return regime ? (
+                                                            <span key={regimeId} className="badge badge-primary">
+                                                                {regime.nom}
+                                                            </span>
+                                                        ) : null;
+                                                    })
+                                                ) : (
+                                                    <span className="text-muted">Aucun régime sélectionné</span>
+                                                )}
                                             </div>
                                         </div>
 
-                                        <div className="preference-section">
-                                            <label className="preference-label">Allergies</label>
+                                        {/* Allergies */}
+                                        <div className="preference-section-new">
+                                            <div className="preference-header">
+                                                <label className="preference-label">Allergies et intolérances</label>
+                                                <button
+                                                    className="btn btn-outline btn-sm"
+                                                    onClick={() => openPreferencesModal('allergenes')}
+                                                >
+                                                    {userPreferences.allergenesIds?.length > 0 ? 'Modifier' : '+ Ajouter'}
+                                                </button>
+                                            </div>
                                             <div className="badge-list">
-                                                {preferences.allergies.map((allergy) => (
-                                                    <span key={allergy} className="badge badge-danger">
-                            {allergy}
-                          </span>
-                                                ))}
-                                                <button className="btn btn-outline btn-sm">+ Ajouter</button>
+                                                {userPreferences.allergenesIds?.length > 0 ? (
+                                                    userPreferences.allergenesIds.map((allergeneId) => {
+                                                        const allergene = allAllergenes.find(a => a.id === allergeneId);
+                                                        return allergene ? (
+                                                            <span key={allergeneId} className="badge badge-danger">
+                                                                {allergene.nom}
+                                                            </span>
+                                                        ) : null;
+                                                    })
+                                                ) : (
+                                                    <span className="text-muted">Aucune allergie déclarée</span>
+                                                )}
                                             </div>
                                         </div>
 
-                                        <div className="preference-section">
-                                            <label className="preference-label">Types de cuisine préférés</label>
+                                        {/* Types de cuisine */}
+                                        <div className="preference-section-new">
+                                            <div className="preference-header">
+                                                <label className="preference-label">Types de cuisine préférés</label>
+                                                <button
+                                                    className="btn btn-outline btn-sm"
+                                                    onClick={() => openPreferencesModal('typesCuisinePreferes')}
+                                                >
+                                                    {userPreferences.typesCuisinePreferesIds?.length > 0 ? 'Modifier' : '+ Ajouter'}
+                                                </button>
+                                            </div>
                                             <div className="badge-list">
-                                                {preferences.cuisineTypes.map((cuisine) => (
-                                                    <span key={cuisine} className="badge badge-secondary">
-                            {cuisine}
-                          </span>
-                                                ))}
-                                                <button className="btn btn-outline btn-sm">+ Ajouter</button>
+                                                {userPreferences.typesCuisinePreferesIds?.length > 0 ? (
+                                                    userPreferences.typesCuisinePreferesIds.map((cuisineId) => {
+                                                        const cuisine = allTypesCuisine.find(c => c.id === cuisineId);
+                                                        return cuisine ? (
+                                                            <span key={cuisineId} className="badge badge-secondary">
+                                                                {cuisine.nom}
+                                                            </span>
+                                                        ) : null;
+                                                    })
+                                                ) : (
+                                                    <span className="text-muted">Aucune préférence culinaire</span>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-
-                                <div className="card">
-                                    <div className="card-header">
-                                        <h3 className="card-title">Préférences de cuisine</h3>
-                                    </div>
-                                    <div className="card-content">
-                                        <div className="preference-section">
-                                            <label className="preference-label">Niveau de compétence</label>
-                                            <span className="badge badge-outline">
-                        <ChefHat className="icon-xs" />
-                                                {preferences.skillLevel}
-                      </span>
-                                        </div>
-
-                                        <div className="preference-section">
-                                            <label className="preference-label">Temps de cuisine préféré</label>
-                                            <span className="badge badge-outline">
-                        <Clock className="icon-xs" />
-                                                {preferences.cookingTime}
-                      </span>
-                                        </div>
-
-                                        <div className="preference-actions">
-                                            <button className="btn btn-primary btn-full">
-                                                <Settings className="icon-sm" />
-                                                Modifier les préférences
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Activity Tab */}
-                    {activeTab === 'activity' && (
-                        <div className="tab-content">
-                            <div className="card">
-                                <div className="card-header">
-                                    <h3 className="card-title">
-                                        <Zap className="icon-sm" style={{ marginRight: '0.5rem' }} />
-                                        Activité récente
-                                    </h3>
-                                    <button
-                                        className="btn-icon"
-                                        onClick={loadRecentActivities}
-                                        disabled={activityLoading}
-                                        title="Rafraîchir les activités"
-                                    >
-                                        <RefreshCw className={`icon-sm ${activityLoading ? 'spinning' : ''}`} />
-                                    </button>
-                                </div>
-                                <div className="card-content">
-                                    {activityLoading ? (
-                                        <div className="loading-state">
-                                            <div className="loading-spinner"></div>
-                                            <p>Chargement...</p>
-                                        </div>
-                                    ) : recentActivity.length === 0 ? (
-                                        <div className="empty-state">
-                                            <Zap className="empty-icon" />
-                                            <p className="empty-title">Aucune activité récente</p>
-                                            <p className="empty-desc">Vos activités apparaîtront ici</p>
-                                        </div>
-                                    ) : (
-                                        <div className="activity-list">
-                                            {recentActivity.map((activity, index) => {
-                                                // Déterminer l'icône et le type selon typeActivite
-                                                let icon = <Zap className="icon" />;
-                                                let activityClass = 'primary';
-                                                let actionText = activity.typeLabel || 'Activité';
-
-                                                if (activity.typeActivite === 'RECIPE_COOKED') {
-                                                    icon = <ChefHat className="icon" />;
-                                                    activityClass = 'primary';
-                                                } else if (activity.typeActivite === 'RECIPE_FAVORITED') {
-                                                    icon = <Heart className="icon" />;
-                                                    activityClass = 'favorite';
-                                                } else if (activity.typeActivite === 'RECIPE_CREATED') {
-                                                    icon = <Sparkles className="icon" />;
-                                                    activityClass = 'success';
-                                                } else if (activity.typeActivite === 'FEEDBACK_CREATED') {
-                                                    icon = <Star className="icon" />;
-                                                    activityClass = 'star';
-                                                } else if (activity.typeActivite === 'PLANNER_UPDATED') {
-                                                    icon = <Clock className="icon" />;
-                                                    activityClass = 'info';
-                                                }
-
-                                                return (
-                                                    <div key={activity.id || index} className="activity-item">
-                                                        <div className={`activity-icon ${activityClass}`}>
-                                                            {icon}
-                                                        </div>
-
-                                                        <div className="activity-content">
-                                                            <div className="activity-text">
-                                                                {actionText}
-                                                                {activity.recetteTitre && ` : "${activity.recetteTitre}"`}
-                                                                {activity.details && ` - ${activity.details}`}
-                                                            </div>
-                                                            <div className="activity-date">{activity.formattedDate}</div>
-                                                        </div>
-
-                                                        {activity.note && (
-                                                            <div className="activity-rating">
-                                                                <Star className="icon-xs star-filled" />
-                                                                <span>{activity.note}/5</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         </div>
@@ -931,7 +799,6 @@ export default function AccountPage() {
                     {/* Validation Tab (Admin only) */}
                     {isAdmin && activeTab === 'validation' && (
                         <div className="tab-content">
-                            {/* Sous-onglets admin */}
                             <div className="sub-tabs">
                                 <button
                                     className={`sub-tab ${activeValidationTab === 'en_attente' ? 'active' : ''}`}
@@ -953,7 +820,6 @@ export default function AccountPage() {
                                 </button>
                             </div>
 
-                            {/* Alertes communes */}
                             {validationSuccess && (
                                 <div className="alert alert-success" style={{ marginBottom: '1.5rem' }}>
                                     <Check className="icon-sm" />
@@ -967,96 +833,94 @@ export default function AccountPage() {
                                 </div>
                             )}
 
-                            {/* Contenu EN_ATTENTE */}
                             {activeValidationTab === 'en_attente' && (
-                            <div className="card">
-                                <div className="card-header">
-                                    <h3 className="card-title">
-                                        <AlertCircle className="icon-sm" style={{ marginRight: '0.5rem' }} />
-                                        Recettes en attente de validation
-                                    </h3>
-                                    <p className="card-subtitle">
-                                        {pendingRecipes.length} recette{pendingRecipes.length > 1 ? 's' : ''} à valider
-                                    </p>
-                                </div>
-                                <div className="card-content">
-                                    {loading ? (
-                                        <div className="loading-state">
-                                            <div className="loading-spinner"></div>
-                                            <p>Chargement...</p>
-                                        </div>
-                                    ) : pendingRecipes.length === 0 ? (
-                                        <div className="empty-state">
-                                            <Check className="empty-icon" />
-                                            <p className="empty-title">Aucune recette en attente</p>
-                                            <p className="empty-desc">Toutes les recettes ont été traitées</p>
-                                        </div>
-                                    ) : (
-                                        <div className="recipes-pending-list">
-                                            {pendingRecipes.map((recipe) => (
-                                                <div key={recipe.id} className="pending-recipe-card">
-                                                    <div className="pending-recipe-image">
-                                                        <img 
-                                                            src={recipe.imageUrl || RECIPE_PLACEHOLDER_URL} 
-                                                            alt={recipe.titre}
-                                                            onError={handleImgError}
-                                                        />
-                                                    </div>
-                                                    <div className="pending-recipe-content">
-                                                        <h4 className="pending-recipe-title">{recipe.titre}</h4>
-                                                        <p className="pending-recipe-desc">
-                                                            {recipe.description || 'Aucune description'}
-                                                        </p>
-                                                        <div className="pending-recipe-meta">
+                                <div className="card">
+                                    <div className="card-header">
+                                        <h3 className="card-title">
+                                            <AlertCircle className="icon-sm" style={{ marginRight: '0.5rem' }} />
+                                            Recettes en attente de validation
+                                        </h3>
+                                        <p className="card-subtitle">
+                                            {pendingRecipes.length} recette{pendingRecipes.length > 1 ? 's' : ''} à valider
+                                        </p>
+                                    </div>
+                                    <div className="card-content">
+                                        {loading ? (
+                                            <div className="loading-state">
+                                                <div className="loading-spinner"></div>
+                                                <p>Chargement...</p>
+                                            </div>
+                                        ) : pendingRecipes.length === 0 ? (
+                                            <div className="empty-state">
+                                                <Check className="empty-icon" />
+                                                <p className="empty-title">Aucune recette en attente</p>
+                                                <p className="empty-desc">Toutes les recettes ont été traitées</p>
+                                            </div>
+                                        ) : (
+                                            <div className="recipes-pending-list">
+                                                {pendingRecipes.map((recipe) => (
+                                                    <div key={recipe.id} className="pending-recipe-card">
+                                                        <div className="pending-recipe-image">
+                                                            <img
+                                                                src={recipe.imageUrl || RECIPE_PLACEHOLDER_URL}
+                                                                alt={recipe.titre}
+                                                                onError={handleImgError}
+                                                            />
+                                                        </div>
+                                                        <div className="pending-recipe-content">
+                                                            <h4 className="pending-recipe-title">{recipe.titre}</h4>
+                                                            <p className="pending-recipe-desc">
+                                                                {recipe.description || 'Aucune description'}
+                                                            </p>
+                                                            <div className="pending-recipe-meta">
                                                             <span className="meta-item">
                                                                 <Clock className="icon-xs" />
                                                                 {recipe.tempsTotal} min
                                                             </span>
-                                                            <span className="meta-item">
+                                                                <span className="meta-item">
                                                                 <Sparkles className="icon-xs" />
-                                                                {recipe.difficulte}
+                                                                    {recipe.difficulte}
                                                             </span>
-                                                            <span className="meta-item">
+                                                                <span className="meta-item">
                                                                 <Flame className="icon-xs" />
-                                                                {recipe.kcal} kcal
+                                                                    {recipe.kcal} kcal
                                                             </span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="pending-recipe-actions">
+                                                            <Link
+                                                                to={`/recette/${recipe.id}`}
+                                                                className="btn btn-outline btn-sm"
+                                                            >
+                                                                Voir détails
+                                                            </Link>
+                                                            <button
+                                                                className="btn btn-success btn-sm"
+                                                                onClick={() => handleValidateRecipe(recipe.id)}
+                                                                disabled={validationLoading}
+                                                                style={{ color: 'white' }}
+                                                            >
+                                                                <Check className="icon-xs" />
+                                                                Valider
+                                                            </button>
+                                                            <button
+                                                                className="btn btn-danger btn-sm"
+                                                                onClick={() => handleRejectRecipe(recipe.id)}
+                                                                disabled={validationLoading}
+                                                                style={{ color: 'white' }}
+                                                            >
+                                                                <X className="icon-xs" />
+                                                                Rejeter
+                                                            </button>
                                                         </div>
                                                     </div>
-                                                    <div className="pending-recipe-actions">
-                                                        <Link
-                                                            to={`/recette/${recipe.id}`}
-                                                            className="btn btn-outline btn-sm"
-                                                        >
-                                                            Voir détails
-                                                        </Link>
-                                                        <button
-                                                            className="btn btn-success btn-sm"
-                                                            onClick={() => handleValidateRecipe(recipe.id)}
-                                                            disabled={validationLoading}
-                                                            style={{ color: 'white' }}
-                                                        >
-                                                            <Check className="icon-xs" />
-                                                            Valider
-                                                        </button>
-                                                        <button
-                                                            className="btn btn-danger btn-sm"
-                                                            onClick={() => handleRejectRecipe(recipe.id)}
-                                                            disabled={validationLoading}
-                                                            style={{ color: 'white' }}
-                                                        >
-                                                            <X className="icon-xs" />
-                                                            Rejeter
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
                             )}
 
-                            {/* Contenu VALIDEES */}
                             {activeValidationTab === 'validees' && (
                                 <div className="card">
                                     <div className="card-header">
@@ -1072,8 +936,8 @@ export default function AccountPage() {
                                                 {validatedRecipes.map((recipe) => (
                                                     <div key={recipe.id} className="pending-recipe-card">
                                                         <div className="pending-recipe-image">
-                                                            <img 
-                                                                src={recipe.imageUrl || RECIPE_PLACEHOLDER_URL} 
+                                                            <img
+                                                                src={recipe.imageUrl || RECIPE_PLACEHOLDER_URL}
                                                                 alt={recipe.titre}
                                                                 onError={handleImgError}
                                                             />
@@ -1094,7 +958,6 @@ export default function AccountPage() {
                                 </div>
                             )}
 
-                            {/* Contenu REJETEES */}
                             {activeValidationTab === 'rejetees' && (
                                 <div className="card">
                                     <div className="card-header">
@@ -1110,8 +973,8 @@ export default function AccountPage() {
                                                 {rejectedRecipes.map((recipe) => (
                                                     <div key={recipe.id} className="pending-recipe-card">
                                                         <div className="pending-recipe-image">
-                                                            <img 
-                                                                src={recipe.imageUrl || RECIPE_PLACEHOLDER_URL} 
+                                                            <img
+                                                                src={recipe.imageUrl || RECIPE_PLACEHOLDER_URL}
                                                                 alt={recipe.titre}
                                                                 onError={handleImgError}
                                                             />
@@ -1160,8 +1023,8 @@ export default function AccountPage() {
                                             {myRecipes.map((recipe) => (
                                                 <div key={recipe.id} className="pending-recipe-card">
                                                     <div className="pending-recipe-image">
-                                                        <img 
-                                                            src={recipe.imageUrl || RECIPE_PLACEHOLDER_URL} 
+                                                        <img
+                                                            src={recipe.imageUrl || RECIPE_PLACEHOLDER_URL}
                                                             alt={recipe.titre}
                                                             onError={handleImgError}
                                                         />
@@ -1190,155 +1053,43 @@ export default function AccountPage() {
                         </div>
                     )}
 
-                    {/* Rejection Modal */}
-                    {showRejectModal && (
-                        <div className="modal-overlay" onClick={() => setShowRejectModal(false)}>
-                            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                                <div className="modal-header">
-                                    <h3>Rejeter la recette</h3>
-                                    <button 
-                                        className="modal-close"
-                                        onClick={() => setShowRejectModal(false)}
-                                    >
-                                        <X className="icon-sm" />
-                                    </button>
-                                </div>
-                                <div className="modal-body">
-                                    <p style={{ marginBottom: '1rem', color: '#64748b' }}>
-                                        Veuillez fournir un motif de rejet pour informer l'auteur :
-                                    </p>
-                                    <textarea
-                                        className="form-input"
-                                        value={rejectMotif}
-                                        onChange={(e) => setRejectMotif(e.target.value)}
-                                        placeholder="Ex: La recette manque d'ingrédients détaillés..."
-                                        rows="4"
-                                        style={{ width: '100%', resize: 'vertical' }}
-                                    />
-                                </div>
-                                <div className="modal-footer">
-                                    <button 
-                                        className="btn btn-outline"
-                                        onClick={() => setShowRejectModal(false)}
-                                    >
-                                        Annuler
-                                    </button>
-                                    <button 
-                                        className="btn btn-danger"
-                                        onClick={confirmRejectRecipe}
-                                        disabled={validationLoading}
-                                        style={{ color: 'white' }}
-                                    >
-                                        {validationLoading ? 'Rejet...' : 'Confirmer le rejet'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Validation Modal */}
-                    {showValidateModal && (
-                        <div className="modal-overlay" onClick={() => setShowValidateModal(false)}>
-                            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                                <div className="modal-header">
-                                    <h3>Valider la recette</h3>
-                                    <button 
-                                        className="modal-close"
-                                        onClick={() => setShowValidateModal(false)}
-                                    >
-                                        <X className="icon-sm" />
-                                    </button>
-                                </div>
-                                <div className="modal-body">
-                                    <p style={{ marginBottom: '1rem', color: '#64748b' }}>
-                                        Êtes-vous sûr de vouloir valider cette recette ?
-                                    </p>
-                                    <p style={{ fontSize: '0.9rem', color: '#94a3b8' }}>
-                                        Elle sera visible par tous les utilisateurs dans l'accueil et les suggestions.
-                                    </p>
-                                </div>
-                                <div className="modal-footer">
-                                    <button 
-                                        className="btn btn-outline"
-                                        onClick={() => setShowValidateModal(false)}
-                                    >
-                                        Annuler
-                                    </button>
-                                    <button 
-                                        className="btn btn-success"
-                                        onClick={confirmValidateRecipe}
-                                        disabled={validationLoading}
-                                        style={{ color: 'white' }}
-                                    >
-                                        {validationLoading ? 'Validation...' : 'Confirmer la validation'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Settings Tab */}
+                    {/* Settings Tab - Sécurité */}
                     {activeTab === 'settings' && (
                         <div className="tab-content">
-                            <div className="settings-grid">
-                                <div className="card">
+                            <div className="settings-grid-new">
+                                <div className="card security-card">
                                     <div className="card-header">
-                                        <h3 className="card-title">Notifications</h3>
+                                        <h3 className="card-title">
+                                            <Lock className="icon-sm" />
+                                            Sécurité du compte
+                                        </h3>
+                                        <p className="card-description">Gérez la sécurité de votre compte</p>
                                     </div>
                                     <div className="card-content">
-                                        <div className="setting-item">
-                                            <div className="setting-info">
-                                                <div className="setting-title">Nouvelles recettes</div>
-                                                <div className="setting-desc">Recevoir des suggestions personnalisées</div>
+                                        <div className="security-section">
+                                            <div className="security-item">
+                                                <div className="security-icon">
+                                                    <Lock />
+                                                </div>
+                                                <div className="security-info">
+                                                    <h4 className="security-title">Mot de passe</h4>
+                                                    <p className="security-desc">Modifiez votre mot de passe régulièrement pour plus de sécurité</p>
+                                                </div>
+                                                <button
+                                                    className="btn btn-primary"
+                                                    onClick={() => setShowPasswordModal(true)}
+                                                >
+                                                    Modifier
+                                                </button>
                                             </div>
-                                            <button className="btn btn-outline btn-sm">Activé</button>
                                         </div>
 
-                                        <div className="setting-item">
-                                            <div className="setting-info">
-                                                <div className="setting-title">Rappels de cuisine</div>
-                                                <div className="setting-desc">Notifications pour vos recettes planifiées</div>
-                                            </div>
-                                            <button className="btn btn-outline btn-sm">Activé</button>
-                                        </div>
-
-                                        <div className="setting-item">
-                                            <div className="setting-info">
-                                                <div className="setting-title">Newsletter</div>
-                                                <div className="setting-desc">Conseils et astuces culinaires</div>
-                                            </div>
-                                            <button className="btn btn-outline btn-sm">Désactivé</button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="card">
-                                    <div className="card-header">
-                                        <h3 className="card-title">Confidentialité</h3>
-                                    </div>
-                                    <div className="card-content">
-                                        <div className="setting-item">
-                                            <div className="setting-info">
-                                                <div className="setting-title">Profil public</div>
-                                                <div className="setting-desc">Permettre aux autres de voir votre profil</div>
-                                            </div>
-                                            <button className="btn btn-outline btn-sm">Privé</button>
-                                        </div>
-
-                                        <div className="setting-item">
-                                            <div className="setting-info">
-                                                <div className="setting-title">Partage des recettes</div>
-                                                <div className="setting-desc">Partager vos créations avec la communauté</div>
-                                            </div>
-                                            <button className="btn btn-outline btn-sm">Activé</button>
-                                        </div>
-
-                                        <div className="setting-actions">
+                                        <div className="danger-zone">
+                                            <h4 className="danger-title">Zone dangereuse</h4>
+                                            <p className="danger-desc">Cette action est irréversible</p>
                                             <button className="btn btn-danger btn-full">
+                                                <AlertCircle className="icon-sm" />
                                                 Supprimer mon compte
-                                            </button>
-                                            <button className="btn btn-outline btn-full">
-                                                Exporter mes données
                                             </button>
                                         </div>
                                     </div>
@@ -1348,6 +1099,259 @@ export default function AccountPage() {
                     )}
                 </div>
             </div>
+
+            {/* Rejection Modal */}
+            {showRejectModal && (
+                <div className="modal-overlay" onClick={() => setShowRejectModal(false)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3>Rejeter la recette</h3>
+                            <button
+                                className="modal-close"
+                                onClick={() => setShowRejectModal(false)}
+                            >
+                                <X className="icon-sm" />
+                            </button>
+                        </div>
+                        <div className="modal-body">
+                            <p style={{ marginBottom: '1rem', color: '#64748b' }}>
+                                Veuillez fournir un motif de rejet pour informer l'auteur :
+                            </p>
+                            <textarea
+                                className="form-input"
+                                value={rejectMotif}
+                                onChange={(e) => setRejectMotif(e.target.value)}
+                                placeholder="Ex: La recette manque d'ingrédients détaillés..."
+                                rows="4"
+                                style={{ width: '100%', resize: 'vertical' }}
+                            />
+                        </div>
+                        <div className="modal-footer">
+                            <button
+                                className="btn btn-outline"
+                                onClick={() => setShowRejectModal(false)}
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                className="btn btn-danger"
+                                onClick={confirmRejectRecipe}
+                                disabled={validationLoading}
+                                style={{ color: 'white' }}
+                            >
+                                {validationLoading ? 'Rejet...' : 'Confirmer le rejet'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Validation Modal */}
+            {showValidateModal && (
+                <div className="modal-overlay" onClick={() => setShowValidateModal(false)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3>Valider la recette</h3>
+                            <button
+                                className="modal-close"
+                                onClick={() => setShowValidateModal(false)}
+                            >
+                                <X className="icon-sm" />
+                            </button>
+                        </div>
+                        <div className="modal-body">
+                            <p style={{ marginBottom: '1rem', color: '#64748b' }}>
+                                Êtes-vous sûr de vouloir valider cette recette ?
+                            </p>
+                            <p style={{ fontSize: '0.9rem', color: '#94a3b8' }}>
+                                Elle sera visible par tous les utilisateurs dans l'accueil et les suggestions.
+                            </p>
+                        </div>
+                        <div className="modal-footer">
+                            <button
+                                className="btn btn-outline"
+                                onClick={() => setShowValidateModal(false)}
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                className="btn btn-success"
+                                onClick={confirmValidateRecipe}
+                                disabled={validationLoading}
+                                style={{ color: 'white' }}
+                            >
+                                {validationLoading ? 'Validation...' : 'Confirmer la validation'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Password Change Modal */}
+            {showPasswordModal && (
+                <div className="modal-overlay" onClick={() => setShowPasswordModal(false)}>
+                    <div className="modal-content password-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3>
+                                <Lock className="icon-sm" />
+                                Modifier le mot de passe
+                            </h3>
+                            <button
+                                className="modal-close"
+                                onClick={() => {
+                                    setShowPasswordModal(false);
+                                    setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
+                                    setPasswordError('');
+                                    setPasswordSuccess('');
+                                }}
+                            >
+                                <X className="icon-sm" />
+                            </button>
+                        </div>
+                        <div className="modal-body">
+                            {passwordSuccess && (
+                                <div className="alert alert-success">
+                                    <Check className="icon-sm" />
+                                    <span>{passwordSuccess}</span>
+                                </div>
+                            )}
+                            {passwordError && (
+                                <div className="alert alert-error">
+                                    <AlertCircle className="icon-sm" />
+                                    <span>{passwordError}</span>
+                                </div>
+                            )}
+
+                            <div className="form-group">
+                                <label htmlFor="oldPassword" className="form-label">Mot de passe actuel *</label>
+                                <div className="input-wrapper">
+                                    <Lock className="input-icon" />
+                                    <input
+                                        type={showOldPassword ? "text" : "password"}
+                                        id="oldPassword"
+                                        name="oldPassword"
+                                        value={passwordData.oldPassword}
+                                        onChange={handlePasswordChange}
+                                        className="form-input"
+                                        placeholder="Entrez votre mot de passe actuel"
+                                    />
+                                    <button
+                                        type="button"
+                                        className="password-toggle"
+                                        onClick={() => setShowOldPassword(!showOldPassword)}
+                                    >
+                                        {showOldPassword ? <EyeOff className="icon-sm" /> : <Eye className="icon-sm" />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label htmlFor="newPassword" className="form-label">Nouveau mot de passe *</label>
+                                <div className="input-wrapper">
+                                    <Lock className="input-icon" />
+                                    <input
+                                        type={showNewPassword ? "text" : "password"}
+                                        id="newPassword"
+                                        name="newPassword"
+                                        value={passwordData.newPassword}
+                                        onChange={handlePasswordChange}
+                                        className="form-input"
+                                        placeholder="Minimum 8 caractères"
+                                    />
+                                    <button
+                                        type="button"
+                                        className="password-toggle"
+                                        onClick={() => setShowNewPassword(!showNewPassword)}
+                                    >
+                                        {showNewPassword ? <EyeOff className="icon-sm" /> : <Eye className="icon-sm" />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label htmlFor="confirmPassword" className="form-label">Confirmer le nouveau mot de passe *</label>
+                                <div className="input-wrapper">
+                                    <Lock className="input-icon" />
+                                    <input
+                                        type={showConfirmPassword ? "text" : "password"}
+                                        id="confirmPassword"
+                                        name="confirmPassword"
+                                        value={passwordData.confirmPassword}
+                                        onChange={handlePasswordChange}
+                                        className="form-input"
+                                        placeholder="Confirmez votre nouveau mot de passe"
+                                    />
+                                    <button
+                                        type="button"
+                                        className="password-toggle"
+                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                    >
+                                        {showConfirmPassword ? <EyeOff className="icon-sm" /> : <Eye className="icon-sm" />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="password-requirements">
+                                <p className="requirements-title">Le mot de passe doit contenir :</p>
+                                <ul className="requirements-list">
+                                    <li className={passwordData.newPassword.length >= 8 ? 'valid' : ''}>
+                                        {passwordData.newPassword.length >= 8 ? '✓' : '○'} Au moins 8 caractères
+                                    </li>
+                                    <li className={/[A-Z]/.test(passwordData.newPassword) ? 'valid' : ''}>
+                                        {/[A-Z]/.test(passwordData.newPassword) ? '✓' : '○'} Une lettre majuscule
+                                    </li>
+                                    <li className={/[a-z]/.test(passwordData.newPassword) ? 'valid' : ''}>
+                                        {/[a-z]/.test(passwordData.newPassword) ? '✓' : '○'} Une lettre minuscule
+                                    </li>
+                                    <li className={/[0-9]/.test(passwordData.newPassword) ? 'valid' : ''}>
+                                        {/[0-9]/.test(passwordData.newPassword) ? '✓' : '○'} Un chiffre
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div className="modal-footer">
+                            <button
+                                className="btn btn-outline"
+                                onClick={() => {
+                                    setShowPasswordModal(false);
+                                    setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
+                                    setPasswordError('');
+                                    setPasswordSuccess('');
+                                }}
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                className="btn btn-primary"
+                                onClick={handlePasswordSubmit}
+                                disabled={loading}
+                            >
+                                {loading ? 'Modification...' : 'Modifier le mot de passe'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de sélection des préférences */}
+            <PreferencesModal
+                isOpen={showPreferencesModal}
+                onClose={() => setShowPreferencesModal(false)}
+                type={currentModalType}
+                title={
+                    currentModalType === 'regimes' ? 'Sélectionner vos régimes alimentaires' :
+                        currentModalType === 'allergenes' ? 'Sélectionner vos allergènes' :
+                            'Sélectionner vos types de cuisine préférés'
+                }
+                availableItems={
+                    currentModalType === 'regimes' ? allRegimes :
+                        currentModalType === 'allergenes' ? allAllergenes :
+                            allTypesCuisine
+                }
+                selectedIds={userPreferences[`${currentModalType}Ids`] || []}
+                onSave={handleSavePreferences}
+                loading={preferencesLoading}
+            />
         </div>
     );
 }

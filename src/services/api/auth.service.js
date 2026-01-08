@@ -101,15 +101,27 @@ class AuthService {
             console.log('   URL:', `${API_URL}/${id}`);
             console.log('   Data:', JSON.stringify(userData, null, 2));
             console.log('   Token:', token ? token.substring(0, 20) + '...' : 'NO TOKEN');
-            
+
             const response = await axios.put(`${API_URL}/${id}`, userData, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             });
-            
+
             console.log('✅ [AuthService] Update successful:', response.data);
+
+            // Mettre à jour le localStorage avec les nouvelles données
+            const currentUser = JSON.parse(localStorage.getItem('user'));
+            if (currentUser) {
+                const updatedUser = {
+                    ...currentUser,
+                    ...response.data
+                };
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+                console.log('💾 localStorage mis à jour:', updatedUser);
+            }
+
             return response.data;
         } catch (error) {
             console.error('❌ [AuthService] Update failed');
@@ -117,6 +129,56 @@ class AuthService {
             console.error('   Data:', error.response?.data);
             console.error('   Headers:', error.response?.headers);
             throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Changer le mot de passe
+     */
+    async changePassword(userId, oldPassword, newPassword) {
+        try {
+            const token = this.getToken();
+            if (!token) {
+                throw new Error('Token manquant');
+            }
+
+            console.log('🔐 Changement de mot de passe pour utilisateur:', userId);
+
+            const response = await axios.put(
+                `${API_URL}/${userId}`,
+                {
+                    ancienMotDePasse: oldPassword,
+                    nouveauMotDePasse: newPassword
+                },
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            console.log('✅ Mot de passe changé avec succès');
+            return response.data;
+        } catch (error) {
+            console.error('❌ Erreur changement mot de passe:', error);
+
+            if (error.response) {
+                const message = error.response.data?.message || error.response.data?.error || 'Erreur lors du changement de mot de passe';
+
+                // Messages d'erreur spécifiques
+                if (error.response.status === 401 || message.includes('incorrect')) {
+                    throw new Error('L\'ancien mot de passe est incorrect');
+                } else if (error.response.status === 400) {
+                    throw new Error('Les données fournies sont invalides');
+                } else {
+                    throw new Error(message);
+                }
+            } else if (error.request) {
+                throw new Error('Impossible de contacter le serveur');
+            } else {
+                throw new Error(error.message);
+            }
         }
     }
 
@@ -185,6 +247,60 @@ class AuthService {
             return new Error('Impossible de contacter le serveur. Vérifiez votre connexion.');
         } else {
             return new Error(error.message);
+        }
+    }
+
+    /**
+     * Mettre à jour les préférences alimentaires d'un utilisateur
+     * PUT /api/utilisateurs/{id}
+     */
+    async updatePreferences(userId, preferences) {
+        try {
+            const token = this.getToken();
+            if (!token) {
+                throw new Error('Token manquant');
+            }
+
+            console.log('🔄 Mise à jour des préférences:', preferences);
+
+            const response = await axios.put(
+                `${API_URL}/${userId}`,
+                preferences,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+
+            console.log('✅ Préférences mises à jour:', response.data);
+
+            // Mettre à jour localStorage
+            const currentUser = JSON.parse(localStorage.getItem('user'));
+            if (currentUser) {
+                const updatedUser = {
+                    ...currentUser,
+                    regimesIds: response.data.regimesIds || preferences.regimesIds || currentUser.regimesIds,
+                    allergenesIds: response.data.allergenesIds || preferences.allergenesIds || currentUser.allergenesIds,
+                    typesCuisinePreferesIds: response.data.typesCuisinePreferesIds || preferences.typesCuisinePreferesIds || currentUser.typesCuisinePreferesIds
+                };
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+                console.log('💾 localStorage mis à jour:', updatedUser);
+            }
+
+            return response.data;
+        } catch (error) {
+            console.error('❌ Erreur mise à jour préférences:', error);
+
+            if (error.response) {
+                const message = error.response.data?.message || error.response.data?.error || 'Erreur serveur';
+                throw new Error(message);
+            } else if (error.request) {
+                throw new Error('Impossible de contacter le serveur');
+            } else {
+                throw new Error(error.message);
+            }
         }
     }
 }
