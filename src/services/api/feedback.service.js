@@ -1,5 +1,6 @@
 import axios from 'axios';
 
+// ms-feedback est en local, donc on utilise localhost directement
 const API_URL = process.env.REACT_APP_FEEDBACK_SERVICE_URL || 'http://localhost:8091/api/feedbacks';
 
 class FeedbackService {

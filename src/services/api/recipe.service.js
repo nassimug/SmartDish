@@ -2,8 +2,12 @@ import axios from 'axios';
 import { normalizeImageUrl, normalizeRecipeImageUrl, normalizeRecipesImageUrls } from '../../utils/imageUrlHelper';
 import feedbackService from './feedback.service';
 
-// URLs des services - utilisent les variables d'environnement pour Railway
-const API_URL = process.env.REACT_APP_RECIPE_SERVICE_URL || 'https://ms-recette-production.up.railway.app/api/recettes';
+// URLs des services - utilisent le proxy en développement local pour éviter CORS
+// Le proxy redirige /api/recettes vers https://ms-recette-production.up.railway.app
+const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_URL = isDevelopment 
+    ? '/api/recettes'  // Utilise le proxy en dev (configuré dans setupProxy.js)
+    : (process.env.REACT_APP_RECIPE_SERVICE_URL || 'https://ms-recette-production.up.railway.app/api/recettes');
 const PERSISTENCE_URL = process.env.REACT_APP_PERSISTENCE_SERVICE_URL || 'https://ms-persistance-production.up.railway.app/api/persistance';
 const RECOMMENDATION_URL = process.env.REACT_APP_RECOMMENDATION_SERVICE_URL || 'http://localhost:8095/api';
 const USER_URL = process.env.REACT_APP_USER_SERVICE_URL || 'http://localhost:8092/api/utilisateurs';
