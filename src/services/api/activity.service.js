@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const PERSISTANCE_API_URL = process.env.REACT_APP_PERSISTENCE_SERVICE_URL ? `${process.env.REACT_APP_PERSISTENCE_SERVICE_URL}/utilisateurs` : 'https://ms-persistance-production.up.railway.app/api/persistance/utilisateurs';
+const PERSISTANCE_API_URL = 'http://localhost:8090/api/persistance/utilisateurs';
 
 class ActivityService {
     constructor() {}

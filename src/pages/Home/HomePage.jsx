@@ -45,12 +45,11 @@ export default function HomePage() {
                             try {
                                 const imgs = await recipesService.getImages(recipe.id);
                                 if (imgs && imgs.length > 0) {
-                                    // PRIORITÉ: urlStream (backend) > directUrl (MinIO) > presigned > fallback
-                                    // urlStream fonctionne car ms-persistance est maintenant déployé sur Railway
-                                    const best = imgs[0].urlStream || imgs[0].directUrl || imgs[0].urlTelechargement || imgs[0].url;
+                                    // Préférence: directUrl (MinIO public) > stream > presigned > fallback
+                                    const best = imgs[0].directUrl || imgs[0].urlStream || imgs[0].urlTelechargement || imgs[0].url;
                                     if (best) {
                                         primaryImageUrl = normalizeImageUrl(best);
-                                        console.log('[Home] Using images[0] for recipe', recipe.id, 'via', imgs[0].urlStream ? 'urlStream' : 'directUrl', primaryImageUrl?.substring(0, 80));
+                                        console.log('[Home] Using images[0] for recipe', recipe.id, primaryImageUrl);
                                     }
                                 }
                             } catch (e) {
@@ -93,73 +92,8 @@ export default function HomePage() {
                 setTrendingRecipes(recipesWithDetails);
             } catch (error) {
                 console.error('Erreur lors du chargement:', error);
-                // Fallback: si /populaires échoue (ex: ms-persistance timeout), charger des recettes récentes
-                try {
-                    console.warn('[Home] Fallback: chargement des recettes récentes');
-                    const recentRecipes = await recipesService.getRecentRecettes(6);
-                    const recentWithDetails = await Promise.all(
-                        (Array.isArray(recentRecipes) ? recentRecipes : [])
-                            .map(async (recipe) => {
-                                try {
-                                    const enriched = await recipesService.enrichWithFeedbacks(recipe);
-                                    let note = enriched.note || 0;
-                                    let nombreAvis = enriched.nombreAvis || 0;
-
-                                    let primaryImageUrl = recipe.imageUrl ? normalizeImageUrl(recipe.imageUrl) : null;
-                                    try {
-                                        const imgs = await recipesService.getImages(recipe.id);
-                                        if (imgs && imgs.length > 0) {
-                                            // PRIORITÉ: urlStream (backend) > directUrl (MinIO) > presigned > fallback
-                                            const best = imgs[0].urlStream || imgs[0].directUrl || imgs[0].urlTelechargement || imgs[0].url;
-                                            if (best) {
-                                                primaryImageUrl = normalizeImageUrl(best);
-                                            }
-                                        }
-                                    } catch (e) {
-                                        console.warn('[Home] getImages failed (fallback) for recipe', recipe.id, e);
-                                    }
-
-                                    if (!primaryImageUrl) {
-                                        primaryImageUrl = RECIPE_PLACEHOLDER_URL;
-                                    }
-
-                                    return {
-                                        id: recipe.id,
-                                        titre: recipe.titre || 'Recette sans titre',
-                                        tempsPreparation: recipe.tempsTotal || 30,
-                                        note,
-                                        nombreAvis,
-                                        imageUrl: primaryImageUrl || RECIPE_PLACEHOLDER_URL,
-                                        difficulte: recipe.difficulte || 'FACILE',
-                                        kcal: recipe.kcal || 0
-                                    };
-                                } catch (err) {
-                                    return {
-                                        id: recipe.id,
-                                        titre: recipe.titre || 'Recette sans titre',
-                                        tempsPreparation: recipe.tempsTotal || 30,
-                                        note: 0,
-                                        nombreAvis: 0,
-                                        imageUrl: (recipe.imageUrl && normalizeImageUrl(recipe.imageUrl)) || RECIPE_PLACEHOLDER_URL,
-                                        difficulte: recipe.difficulte || 'FACILE',
-                                        kcal: recipe.kcal || 0
-                                    };
-                                }
-                            })
-                    );
-
-                    if (recentWithDetails.length > 0) {
-                        setTrendingRecipes(recentWithDetails);
-                        setError(null);
-                    } else {
-                        setError(error.message);
-                        setTrendingRecipes([]);
-                    }
-                } catch (fallbackErr) {
-                    console.error('[Home] Fallback recent recipes failed:', fallbackErr);
-                    setError(error.message);
-                    setTrendingRecipes([]);
-                }
+                setError(error.message);
+                setTrendingRecipes([]);
             } finally {
                 setLoading(false);
             }

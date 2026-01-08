@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const NOTIFICATION_API_URL = process.env.REACT_APP_PERSISTENCE_SERVICE_URL ? `${process.env.REACT_APP_PERSISTENCE_SERVICE_URL}/notifications` : 'https://ms-persistance-production.up.railway.app/api/persistance/notifications';
+const NOTIFICATION_API_URL = 'http://localhost:8090/api/persistance/notifications';
 
 class NotificationService {
     // Helper pour obtenir le token
