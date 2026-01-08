@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8093/api/recettes';
+const API_URL = 'https://ms-recette-production.up.railway.app/api/recettes';
 const PERSISTANCE_URL = process.env.REACT_APP_PERSISTENCE_SERVICE_URL || 'https://ms-persistance-production.up.railway.app/api/persistance';
 
 /**

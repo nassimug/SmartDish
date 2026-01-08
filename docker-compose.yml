@@ -74,7 +74,7 @@ services:
   # MS-Persistance - Service de persistance
   # ========================================
   ms-persistance:
-    image: abdboutchichi/ms-persistance:1.0.0
+    image: nassimug/ms-persistance:1.1.1
     container_name: smartdish-ms-persistance
     restart: unless-stopped
     depends_on:
@@ -130,7 +130,7 @@ services:
   # MS-Utilisateur - Gestion des utilisateurs
   # ========================================
   ms-utilisateur:
-    image: abdboutchichi/ms-utilisateur:latest
+    image: nassimug/ms-utilisateur:1.1.0
     container_name: smartdish-ms-utilisateur
     restart: unless-stopped
     depends_on:
@@ -151,6 +151,14 @@ services:
       # JWT Configuration
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION}
+
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_PROTOCOL: smtp
+      MAIL_SMTP_AUTH: "true"
+      MAIL_SMTP_STARTTLS_ENABLE: "true"
       
       # Actuator Configuration
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "*"
@@ -296,8 +304,6 @@ services:
       ms-utilisateur:
         condition: service_healthy
       ms-recette:
-        condition: service_healthy
-      ms-feedback:
         condition: service_healthy
       ms-recommandation:
         condition: service_healthy

@@ -145,7 +145,7 @@ window.SmartDishDebug = {
         console.group('🔍 Recherche d\'images cassées');
         try {
             const token = localStorage.getItem('token');
-            const recipeUrl = process.env.REACT_APP_RECIPE_SERVICE_URL || 'http://localhost:8093/api/recettes';
+            const recipeUrl = process.env.REACT_APP_RECIPE_SERVICE_URL || 'https://ms-recette-production.up.railway.app/api/recettes';
             
             const response = await fetch(`${recipeUrl}`, {
                 headers: {

@@ -3,12 +3,11 @@ import { normalizeImageUrl, normalizeRecipeImageUrl, normalizeRecipesImageUrls }
 import feedbackService from './feedback.service';
 
 // URLs des services - utilisent les variables d'environnement pour Railway
-const API_URL = process.env.REACT_APP_RECIPE_SERVICE_URL || 'http://localhost:8093/api/recettes';
+const API_URL = process.env.REACT_APP_RECIPE_SERVICE_URL || 'https://ms-recette-production.up.railway.app/api/recettes';
 const PERSISTENCE_URL = process.env.REACT_APP_PERSISTENCE_SERVICE_URL || 'https://ms-persistance-production.up.railway.app/api/persistance';
 const RECOMMENDATION_URL = process.env.REACT_APP_RECOMMENDATION_SERVICE_URL || 'http://localhost:8095/api';
 const USER_URL = process.env.REACT_APP_USER_SERVICE_URL || 'http://localhost:8092/api/utilisateurs';
 const FEEDBACK_URL = process.env.REACT_APP_FEEDBACK_SERVICE_URL || 'http://localhost:8091/api/feedbacks';
-
 
 class RecipesService {
     constructor() {
