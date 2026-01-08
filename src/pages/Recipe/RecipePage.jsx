@@ -60,39 +60,16 @@ export default function RecipePage() {
     // Charger les images (tous utilisateurs)
     const loadImages = useCallback(async () => {
         try {
-            // ⚠️ IMPORTANT: Vider le cache pour forcer le rechargement depuis le backend
-            // Sinon les anciennes URLs cachées s'affichent même si le code a changé
-            recipesService.clearImageCache(recipeId);
-            
             const data = await recipesService.getImages(recipeId);
             const normalized = (data || []).map((img) => {
-                // PRIORITÉ selon l'environnement:
-                // - En DEV (localhost): urlStream > directUrl (streaming via backend marche)
-                // - En PROD (Railway): directUrl > urlStream (backend non dispo, MinIO public)
-                const isProduction = !process.env.REACT_APP_PERSISTENCE_SERVICE_URL?.includes('localhost');
-                
-                let display;
-                if (isProduction) {
-                    // En production, utiliser directUrl (MinIO public)
-                    display = img.directUrl || img.urlStream || img.urlTelechargement || img.url || img.cheminFichier;
-                } else {
-                    // En dev, utiliser urlStream (backend local)
-                    display = img.urlStream || img.directUrl || img.urlTelechargement || img.url || img.cheminFichier;
-                }
-                
+                const display = img.directUrl || img.urlStream || img.urlTelechargement || img.url || img.cheminFichier;
                 const finalUrl = display ? normalizeImageUrl(display) : display;
                 return { ...img, displayUrl: finalUrl };
             });
-            console.log('🖼️ Images stream chargées:', normalized.map(img => ({
-                id: img.id,
-                nom: img.nom,
-                displayUrl: img.displayUrl?.substring(0, 100) + '...',
-                urlStream: img.urlStream?.substring(0, 100) + '...',
-                directUrl: img.directUrl?.substring(0, 100) + '...'
-            })));
+            console.log('Images stream chargées:', normalized);
             setImages(normalized);
 
-            // Si on a au moins une image, l'utiliser comme image principale affichée
+            // Si on a au moins une image stream, l'utiliser comme image principale affichée
             if (normalized.length > 0 && normalized[0].displayUrl) {
                 setRecipe((prev) => prev ? {
                     ...prev,
@@ -101,7 +78,7 @@ export default function RecipePage() {
                 } : prev);
             }
         } catch (err) {
-            console.error('❌ Erreur chargement images:', err);
+            console.error('Erreur chargement images:', err);
         }
     }, [recipeId]);
 
@@ -128,7 +105,7 @@ export default function RecipePage() {
                     if (feedback.utilisateurId) {
                         try {
                             const token = localStorage.getItem('token');
-                            const response = await fetch(`${process.env.REACT_APP_PERSISTENCE_SERVICE_URL || 'https://ms-persistance-production.up.railway.app/api/persistance'}/utilisateurs/${feedback.utilisateurId}`, {
+                            const response = await fetch(`http://localhost:8090/api/persistance/utilisateurs/${feedback.utilisateurId}`, {
                                 headers: {
                                     'Authorization': `Bearer ${token}`,
                                     'Content-Type': 'application/json'
@@ -401,89 +378,34 @@ export default function RecipePage() {
         }
 
         try {
-            console.log('🗑️ Tentative suppression image:', imageId);
             await recipesService.deleteFichier(recipeId, imageId);
-            
-            // Forcer le rechargement des images
-            recipesService.clearImageCache(recipeId);
-            
-            // Recharger les images depuis le backend
-            const updatedImages = await recipesService.getImages(recipeId);
-            const normalized = (updatedImages || []).map((img) => {
-                const isProduction = !process.env.REACT_APP_PERSISTENCE_SERVICE_URL?.includes('localhost');
-                let display;
-                if (isProduction) {
-                    display = img.directUrl || img.urlStream || img.urlTelechargement || img.url || img.cheminFichier;
-                } else {
-                    display = img.urlStream || img.directUrl || img.urlTelechargement || img.url || img.cheminFichier;
-                }
-                const finalUrl = display ? normalizeImageUrl(display) : display;
-                return { ...img, displayUrl: finalUrl };
-            });
-            
-            // ✅ IMPORTANT: Mettre à jour l'état des images
-            setImages(normalized);
-            
-            // ✅ IMPORTANT: Mettre à jour l'image principale de la recette
-            if (normalized.length > 0 && normalized[0].displayUrl) {
-                setRecipe((prev) => prev ? {
-                    ...prev,
-                    image: normalized[0].displayUrl,
-                    imageUrl: normalized[0].displayUrl
-                } : prev);
-            } else {
-                // Si plus d'images, utiliser le placeholder
-                setRecipe((prev) => prev ? {
-                    ...prev,
-                    image: RECIPE_PLACEHOLDER_URL,
-                    imageUrl: RECIPE_PLACEHOLDER_URL
-                } : prev);
-            }
-            
-            alert('✅ Image supprimée avec succès !');
+            await loadImages();
+            alert('Image supprimée avec succès !');
         } catch (err) {
-            console.error('❌ Erreur suppression:', err);
-            
-            // Vérifier si c'est un problème de service indisponible
-            if (err.message?.includes('503') || err.message?.includes('Service')) {
-                alert('⚠️ Le service de suppression est temporairement indisponible.\n\nVerifiez que les services backend sont en cours d\'exécution:\n- ms-recette\n- ms-persistance');
-            } else if (err.message?.includes('500')) {
-                alert('⚠️ Erreur serveur lors de la suppression.\n\nVeuillez réessayer dans quelques instants.');
-            } else {
-                alert('❌ Erreur lors de la suppression: ' + err.message);
-            }
+            console.error('Erreur suppression:', err);
+            alert('Erreur lors de la suppression: ' + err.message);
         }
     };
 
     // Définir une image comme image principale (admin uniquement)
     const handleSetMainImage = async (imageUrl) => {
         try {
-            console.log('📸 Tentative définir image principale:', imageUrl?.substring(0, 80));
             setRecipe({ ...recipe, image: imageUrl });
 
             await recipesService.updateRecette(recipeId, {
                 imageUrl: imageUrl
             });
 
-            alert('✅ Image principale mise à jour !');
+            alert('Image principale mise à jour !');
         } catch (err) {
-            console.error('❌ Erreur mise à jour:', err);
-            
-            // Recharger l'état précédent
+            console.error('Erreur mise à jour:', err);
+            alert('Erreur lors de la mise à jour: ' + err.message);
+
             try {
                 const data = await recipesService.getRecetteById(recipeId);
                 setRecipe(data);
-                
-                if (err.message?.includes('503') || err.message?.includes('Service')) {
-                    alert('⚠️ Le service de mise à jour est temporairement indisponible.\n\nVerifiez que les services backend sont en cours d\'exécution:\n- ms-recette\n- ms-persistance');
-                } else if (err.message?.includes('500')) {
-                    alert('⚠️ Erreur serveur lors de la mise à jour.\n\nL\'état précédent a été restauré.');
-                } else {
-                    alert('❌ Erreur lors de la mise à jour: ' + err.message);
-                }
             } catch (reloadErr) {
-                console.error('❌ Erreur rechargement:', reloadErr);
-                alert('❌ Erreur: Impossible de restaurer l\'état précédent');
+                console.error('Erreur rechargement:', reloadErr);
             }
         }
     };
@@ -763,45 +685,11 @@ export default function RecipePage() {
                 <div className="recipe-header-grid">
                     <div className="recipe-image-container">
                         <img
-                            src={recipe.image || recipe.imageUrl || RECIPE_PLACEHOLDER_URL}
+                            src={(images[0]?.displayUrl) || recipe.image || recipe.imageUrl || RECIPE_PLACEHOLDER_URL}
                             alt={recipe.title || recipe.titre}
                             className="recipe-main-image"
-                            onLoad={(e) => {
-                                console.log('✅ Image chargée avec succès via:', e.target.src?.substring(0, 80) + '...');
-                            }}
                             onError={(e) => {
-                                const failedUrl = e.target.src;
-                                console.warn('❌ URL primaire échouée:', failedUrl?.substring(0, 80) + '...');
-                                
-                                // Marquer qu'on a tenté cette URL pour éviter les boucles
-                                if (!e.target.dataset.attemptedUrls) {
-                                    e.target.dataset.attemptedUrls = failedUrl;
-                                } else {
-                                    e.target.dataset.attemptedUrls += ',' + failedUrl;
-                                }
-                                
-                                const attemptedUrls = e.target.dataset.attemptedUrls.split(',');
-                                const image = images[0];
-                                
-                                if (image) {
-                                    // Essayer displayUrl en priorité
-                                    const urlsToTry = [
-                                        { url: image.displayUrl, name: 'displayUrl' },
-                                        { url: image.urlStream, name: 'urlStream' },
-                                        { url: image.directUrl, name: 'directUrl' },
-                                        { url: image.urlTelechargement, name: 'urlTelechargement' }
-                                    ].filter(u => u.url && !attemptedUrls.includes(u.url));
-                                    
-                                    if (urlsToTry.length > 0) {
-                                        const nextUrl = urlsToTry[0];
-                                        console.log('🔄 Fallback tentative:', nextUrl.name);
-                                        e.target.src = normalizeImageUrl(nextUrl.url);
-                                        return;
-                                    }
-                                }
-                                
-                                // Dernier recours
-                                console.log('❌ Toutes les URLs ont échoué, utilisation du placeholder');
+                                console.warn('❌ Erreur chargement image recette:', recipe.imageUrl);
                                 e.target.src = RECIPE_PLACEHOLDER_URL;
                             }}
                         />

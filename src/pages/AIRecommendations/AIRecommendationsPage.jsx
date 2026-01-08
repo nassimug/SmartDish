@@ -59,10 +59,8 @@ export default function AIRecommendationsPage() {
                                 if (!note || note === 0) {
                                     try {
                                         const ratingData = await feedbackService.getAverageRatingByRecetteId(recipeData.id);
-
-                                        // ✅ Mapping correct selon swagger: averageRating / totalFeedbacks
-                                        note = ratingData?.averageRating ?? 0;
-                                        nombreAvis = ratingData?.totalFeedbacks ?? 0;
+                                        note = ratingData?.moyenneNote || 0;
+                                        nombreAvis = ratingData?.nombreAvis || 0;
                                     } catch (ratingError) {
                                         console.log(`Pas de note pour recette ${recipeData.id}`);
                                     }
