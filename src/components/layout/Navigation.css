@@ -1,7 +1,7 @@
 /* ===================================
    VARIABLES - HARMONISÉES AVEC HOME
    =================================== */
-:root {
+/* :root {
 
     --primary: #d97706;
     --primary-dark: #b45309;
@@ -34,8 +34,47 @@
     --radius-md: 12px;
     --radius-lg: 16px;
     --radius-xl: 24px;
-}
+} */
 
+:root {
+
+    --primary: #ea8c4e;
+    --primary-dark: #99e684;
+    --primary-light: #fef3c7;
+    --accent: #d10711;
+    --accent-dark: #ae0535;
+    --accent-light: #ffedd5;
+    --secondary: #92400e;
+    --secondary-dark: #78350f;
+    --secondary-light: #fef3c7;
+    
+    --text-primary: #111827;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --border: #e5e7eb;
+    --background: #ffffff;
+    --background-blur: rgba(255, 255, 255, 0.9);
+
+        /* Bordeaux (remplace le vert) */
+    --bordeaux: #9ad860;
+    --bordeaux-dark: #4e1c0b;
+    --bordeaux-light: #f7e9e9;
+    --success: var(--bordeaux); /* remplace l'ancien vert */
+    
+    --warning: #ba0808;
+    --info: #3b82f6;
+    
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    --shadow-orange: 0 4px 14px rgba(217, 119, 6, 0.25);
+    
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+}
 /* ===================================
    NAVIGATION PRINCIPALE
    =================================== */
@@ -71,20 +110,8 @@
 .nav-logo {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    font-size: 1.5rem;
-    font-weight: 800;
-    color: var(--primary);
+    gap: 10px;
     text-decoration: none;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    padding: 0.75rem 1rem;
-    border-radius: var(--radius-lg);
-    background: linear-gradient(135deg, 
-        rgba(217, 119, 6, 0.08), 
-        rgba(249, 115, 22, 0.04)
-    );
-    border: 1px solid rgba(217, 119, 6, 0.15);
-    animation: logoEntrance 0.6s ease-out;
 }
 
 .nav-logo:hover {
@@ -514,12 +541,12 @@
 .notification-wrapper {
     position: relative;
 }
-
+ 
 .notification-badge {
     position: absolute;
     top: -6px;
     right: -6px;
-    background: linear-gradient(135deg, #ef4444, #dc2626);
+    background: linear-gradient(135deg, #ab1a1a, #eb1e1e);
     color: white;
     font-size: 0.65rem;
     font-weight: 700;
@@ -861,4 +888,10 @@
     outline: 2px solid var(--accent);
     outline-offset: 4px;
     border-radius: 4px;
+}
+
+.nav-logo-image {
+    width: 90px; 
+    height: 90px; 
+    object-fit: contain;
 }

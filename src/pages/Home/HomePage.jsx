@@ -6,6 +6,7 @@ import { normalizeImageUrl } from '../../utils/imageUrlHelper';
 import { RECIPE_PLACEHOLDER_URL } from '../../utils/RecipePlaceholder';
 import './HomePage.css';
 import heroVideo from "../../videos/accueil.mp4"
+import logo from '../../images/logo.png';
 
 export default function HomePage() {
     const [trendingRecipes, setTrendingRecipes] = useState([]);
@@ -358,8 +359,14 @@ export default function HomePage() {
                 <div className="footer-container">
                     <div className="footer-brand-section">
                         <div className="footer-logo">
-                            <ChefHat size={32} />
-                            <span>SmartDish</span>
+
+                            {/* <ChefHat size={32} /> */}
+                            <img 
+                                src={logo} 
+                                alt="Logo SmartDish" 
+                                className="footer-logo-image"
+                            />
+                            {/* <span>SmartDish</span> */}
                         </div>
                         <p className="footer-tagline">
                             L'IA qui transforme vos ingrédients en délices culinaires
