@@ -267,7 +267,7 @@ export function Navigation() {
                                 </Link>
                                 <Link to="/register" className="btn btn-primary btn-sm">
                                     S'inscrire
-                                </Link>
+                                </Link> 
                             </>
                         )}
                     </div>
