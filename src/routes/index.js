@@ -7,11 +7,12 @@ import ResetPasswordPage from "../pages/Auth/ResetPasswordPage";
 import FavoritesPage from '../pages/Favorites/FavoritesPage';
 import HomePage from '../pages/Home/HomePage';
 import IngredientsPage from '../pages/Ingredients/IngredientsPage';
+import SuggestionsPage from '../pages/Suggestions/SuggestionsPage';
+import AIRecommendationsPage from '../pages/AIRecommendations/AIRecommendationsPage';
+import RecipePage from '../pages/Recipe/RecipePage';
 import { NotFoundPage } from "../pages/NotFound/NotFoundPage";
 import PlannerPage from "../pages/Planner/PlannerPage";
 import CreateRecipePage from '../pages/Recipe/CreateRecipePage';
-import RecipePage from '../pages/Recipe/RecipePage';
-import SuggestionsPage from '../pages/Suggestions/SuggestionsPage';
 
 
 export const routes = [
@@ -56,6 +57,12 @@ export const routes = [
         path: '/suggestions',
         element: SuggestionsPage,
         name: 'Suggestions IA',
+        isProtected: false,
+    },
+    {
+        path: '/ai-recommendations',
+        element: AIRecommendationsPage,
+        name: 'Recommandations IA',
         isProtected: false,
     },
     {

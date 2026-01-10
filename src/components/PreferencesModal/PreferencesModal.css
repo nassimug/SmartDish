@@ -1,0 +1,145 @@
+/* Modal de préférences - Version simple et minimaliste */
+
+.preferences-modal {
+    max-width: 420px;
+    max-height: 65vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.preferences-modal .modal-body {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.search-wrapper {
+    padding: 0;
+}
+
+.search-wrapper .form-input {
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    transition: border-color 0.2s ease;
+}
+
+.search-wrapper .form-input:focus {
+    outline: none;
+    border-color: var(--primary, #2563eb);
+}
+
+.search-wrapper .form-input::placeholder {
+    color: #94a3b8;
+}
+
+.preferences-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+}
+
+/* Scrollbar personnalisée */
+.preferences-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.preferences-list::-webkit-scrollbar-track {
+    background: #f8fafc;
+    border-radius: 3px;
+}
+
+.preferences-list::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+.preferences-list::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+.preference-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 0.875rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: #ffffff;
+}
+
+.preference-item:hover {
+    border-color: #cbd5e1;
+    background-color: #f8fafc;
+}
+
+.preference-item.selected {
+    border-color: var(--primary, #2563eb);
+    background-color: #dbeafe;
+}
+
+.preference-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.preference-name {
+    font-weight: 500;
+    font-size: 0.875rem;
+    color: #1e293b;
+}
+
+.preference-desc {
+    font-size: 0.813rem;
+    color: #64748b;
+    line-height: 1.4;
+}
+
+.selection-count {
+    padding: 0.625rem 0.875rem;
+    background-color: #f8fafc;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 0.813rem;
+    color: #64748b;
+    font-weight: 500;
+    border: 1px solid #e2e8f0;
+}
+
+.empty-message {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: #94a3b8;
+    font-size: 0.875rem;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .preferences-modal {
+        max-width: 100%;
+        max-height: 85vh;
+    }
+
+    .preference-item {
+        padding: 0.75rem;
+    }
+
+    .preference-name {
+        font-size: 0.813rem;
+    }
+
+    .preference-desc {
+        font-size: 0.75rem;
+    }
+}

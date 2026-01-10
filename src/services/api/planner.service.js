@@ -3,6 +3,8 @@ import axios from 'axios';
 const PERSISTANCE_API_URL = 'http://localhost:8090/api/persistance/utilisateurs';
 
 class PlannerService {
+    constructor() {}
+    
     // Helper pour obtenir le token
     getAuthHeader() {
         const token = localStorage.getItem('token');
@@ -37,7 +39,9 @@ class PlannerService {
             const url = `${PERSISTANCE_API_URL}/${utilisateurId}/planification/${semaine}/${annee}`;
             console.log('[PlannerService] GET', url);
             
-            const response = await axios.get(url, { headers: this.getAuthHeader() });
+            const response = await axios.get(url, { 
+                headers: this.getAuthHeader()
+            });
             
             console.log('[PlannerService] Réponse reçue:', {
                 status: response.status,
@@ -79,6 +83,7 @@ class PlannerService {
                 },
                 { headers: this.getAuthHeader() }
             );
+            
             return response.data;
         } catch (error) {
             this.handleError(error);
@@ -95,6 +100,7 @@ class PlannerService {
                 `${PERSISTANCE_API_URL}/${utilisateurId}/planification/${semaine}/${annee}/jour/${jour}/repas/${typeRepas}`,
                 { headers: this.getAuthHeader() }
             );
+            
             return response.data;
         } catch (error) {
             this.handleError(error);
