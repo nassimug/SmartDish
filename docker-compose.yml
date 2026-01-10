@@ -74,7 +74,7 @@ services:
   # MS-Persistance - Service de persistance
   # ========================================
   ms-persistance:
-    image: nassimug/ms-persistance:1.1.1
+    image: nassimug/ms-persistance:1.3
     container_name: smartdish-ms-persistance
     restart: unless-stopped
     depends_on:
@@ -182,7 +182,7 @@ services:
   # MS-Recette - Gestion des recettes
   # ========================================
   ms-recette:
-    image: abdboutchichi/ms-recette:1.0.0
+    image: nassimug/ms-recette:1.1.2
     container_name: smartdish-ms-recette
     restart: unless-stopped
     depends_on:
@@ -274,7 +274,7 @@ services:
   # Ollama - Modèle LLM pour recommandations (optionnel)
   # ========================================
   ollama:
-    image: ollama/ollama:latest
+    image:  nassimug/ms-recommandation:latest
     container_name: smartdish-ollama
     restart: unless-stopped
     ports:
