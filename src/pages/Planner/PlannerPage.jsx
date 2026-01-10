@@ -14,7 +14,6 @@ const MEALS = ["Petit-déjeuner", "Déjeuner", "Dîner"];
 
 export default function PlannerPage() {
     const { user } = useAuth();
-    const navigate = useNavigate();
     const [plannedMeals, setPlannedMeals] = useState({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -45,47 +44,36 @@ export default function PlannerPage() {
         try {
             setLoading(true);
             setError('');
-            
-            // Obtenir la semaine et l'année actuelles
+
             const { semaine, annee } = plannerService.getCurrentWeekAndYear();
             console.log('[PlannerPage] Chargement planification:', { utilisateurId: user.id, semaine, annee });
             setCurrentWeek(semaine);
             setCurrentYear(annee);
 
-            // Charger la planification
             const planification = await plannerService.getPlanification(user.id, semaine, annee);
             console.log('[PlannerPage] Planification reçue:', planification);
-            
-            // Convertir les données du backend en format UI (async maintenant)
+
             const mealsData = await convertPlanificationToUI(planification);
             console.log('[PlannerPage] Données converties:', mealsData);
             setPlannedMeals(mealsData);
         } catch (err) {
             console.error('[PlannerPage] Erreur lors du chargement de la planification:', err);
-            console.error('[PlannerPage] Détails de l\'erreur:', {
-                message: err.message,
-                response: err.response?.data,
-                status: err.response?.status
-            });
-            
-            // Message d'erreur plus explicite
+
             let errorMessage = 'Impossible de charger la planification';
             if (err.message.includes('contacter le serveur')) {
                 errorMessage = 'Le serveur de planification n\'est pas disponible. Vérifiez que ms-persistance est démarré sur le port 8090.';
             } else if (err.response?.status === 404) {
                 errorMessage = 'Aucune planification trouvée pour cette semaine.';
-                // Ne pas afficher d'erreur pour 404, juste initialiser vide
                 setError('');
             } else if (err.response?.status === 500) {
                 errorMessage = '⚠️ Erreur serveur (500) : Le backend a rencontré un problème. Vérifiez les logs Java de ms-persistance pour plus de détails.';
             } else {
                 errorMessage = err.message || 'Impossible de charger la planification';
             }
-            
+
             if (err.response?.status !== 404) {
                 setError(errorMessage);
             }
-            // Initialiser avec des données vides en cas d'erreur
             setPlannedMeals({
                 Lundi: {},
                 Mardi: {},
@@ -100,7 +88,6 @@ export default function PlannerPage() {
         }
     };
 
-    // Convertir les données du backend en format UI
     const convertPlanificationToUI = async (planification) => {
         const meals = {
             Lundi: {},
@@ -114,9 +101,6 @@ export default function PlannerPage() {
 
         if (!planification || !planification.jours) return meals;
 
-        console.log('[convertPlanificationToUI] Planification brute:', planification);
-
-        // Structure backend: { jours: { "0": { repas: { "0": {...}, "1": {...}, "2": {...} } } } }
         const recipePromises = [];
         const recipeMap = new Map();
 
@@ -125,14 +109,10 @@ export default function PlannerPage() {
             if (!dayName || !jourData.repas) return;
 
             Object.entries(jourData.repas).forEach(([mealIndex, repasData]) => {
-                // Utiliser repasData.typeRepas au lieu de mealIndex car le backend stocke le type dans l'objet
                 const actualMealIndex = repasData.typeRepas !== undefined ? repasData.typeRepas : parseInt(mealIndex);
                 const mealName = MEALS[actualMealIndex];
                 if (!mealName) return;
 
-                console.log(`[convertPlanificationToUI] ${dayName} - ${mealName}:`, repasData);
-
-                // Si le repas a une recette, on va charger ses détails
                 if (repasData.recetteId) {
                     if (!recipeMap.has(repasData.recetteId)) {
                         recipeMap.set(repasData.recetteId, []);
@@ -147,7 +127,6 @@ export default function PlannerPage() {
                     }
                     recipeMap.get(repasData.recetteId).push({ dayName, mealName });
                 } else if (repasData.noteLibre) {
-                    // Note libre sans recette
                     meals[dayName][mealName] = {
                         title: repasData.noteLibre,
                         isNote: true,
@@ -159,21 +138,18 @@ export default function PlannerPage() {
             });
         });
 
-        // Charger toutes les recettes en parallèle
         if (recipePromises.length > 0) {
             const recipes = await Promise.all(recipePromises);
-            console.log('[convertPlanificationToUI] Recettes chargées:', recipes);
-            
-            // Charger les images exactement comme dans loadAvailableRecipes
+
             const recipesWithImages = await Promise.all(
                 recipes.map(async ({ id, recipe }) => {
                     if (!recipe) return { id, recipe: null, image: RECIPE_PLACEHOLDER_URL };
-                    
+
                     let imageUrl = RECIPE_PLACEHOLDER_URL;
-                    
+
                     try {
                         const images = await recipeService.getImages(recipe.id);
-                        
+
                         if (images && images.length > 0) {
                             const firstImage = images[0];
                             const bestUrl = firstImage.directUrl || firstImage.urlStream || firstImage.urlTelechargement || firstImage.url;
@@ -189,15 +165,11 @@ export default function PlannerPage() {
                             imageUrl = normalizeImageUrl(recipe.imageUrl);
                         }
                     }
-                    
-                    console.log(`[convertPlanificationToUI] Image pour recette ${recipe.id}:`, imageUrl);
+
                     return { id, recipe, image: imageUrl };
                 })
             );
 
-            console.log('[convertPlanificationToUI] Recettes avec images:', recipesWithImages);
-
-            // Mapper les recettes aux jours/repas
             recipesWithImages.forEach(({ id, recipe, image }) => {
                 const positions = recipeMap.get(id);
                 if (!positions) return;
@@ -212,7 +184,6 @@ export default function PlannerPage() {
                             servings: recipe.nbPersonnes ? `${recipe.nbPersonnes} pers.` : null,
                         };
                     } else {
-                        // Recette non trouvée
                         meals[dayName][mealName] = {
                             id: id,
                             title: 'Recette supprimée',
@@ -225,7 +196,6 @@ export default function PlannerPage() {
             });
         }
 
-        console.log('[convertPlanificationToUI] Repas convertis:', meals);
         return meals;
     };
 
@@ -238,7 +208,6 @@ export default function PlannerPage() {
 
             await plannerService.deleteRepas(user.id, currentWeek, currentYear, dayIndex, mealIndex);
 
-            // Mettre à jour l'UI
             setPlannedMeals((prev) => ({
                 ...prev,
                 [day]: {
@@ -263,17 +232,15 @@ export default function PlannerPage() {
         try {
             setLoadingRecipes(true);
             let recipes = await recipeService.getAllRecipesWithCache();
-            
-            // Enrichir avec feedbacks et images
+
             recipes = await recipeService.enrichManyWithFeedbacks(recipes);
-            
-            // Charger les images pour chaque recette
+
             const recipesWithImages = await Promise.all(
                 recipes.map(async (recipe) => {
                     try {
                         const images = await recipeService.getImages(recipe.id);
                         let imageUrl = RECIPE_PLACEHOLDER_URL;
-                        
+
                         if (images && images.length > 0) {
                             const firstImage = images[0];
                             const bestUrl = firstImage.directUrl || firstImage.urlStream || firstImage.urlTelechargement || firstImage.url;
@@ -283,7 +250,7 @@ export default function PlannerPage() {
                         } else if (recipe.imageUrl) {
                             imageUrl = normalizeImageUrl(recipe.imageUrl);
                         }
-                        
+
                         return {
                             ...recipe,
                             imagePrincipale: imageUrl
@@ -297,7 +264,7 @@ export default function PlannerPage() {
                     }
                 })
             );
-            
+
             setAvailableRecipes(recipesWithImages);
         } catch (err) {
             console.error('Erreur chargement recettes:', err);
@@ -318,15 +285,6 @@ export default function PlannerPage() {
             const dayIndex = plannerService.getDayIndex(modalDay);
             const mealIndex = plannerService.getMealIndex(modalMeal);
 
-            console.log('Ajout du repas:', {
-                utilisateurId: user.id,
-                semaine: currentWeek,
-                annee: currentYear,
-                jour: dayIndex,
-                typeRepas: mealIndex,
-                recetteId: recipe.id
-            });
-
             await plannerService.addOrUpdateRepas({
                 utilisateurId: user.id,
                 semaine: currentWeek,
@@ -337,7 +295,6 @@ export default function PlannerPage() {
                 noteLibre: null
             });
 
-            // Mettre à jour l'UI
             setPlannedMeals((prev) => ({
                 ...prev,
                 [modalDay]: {
@@ -352,7 +309,6 @@ export default function PlannerPage() {
                 },
             }));
 
-            // Fermer le modal
             closeRecipeModal();
         } catch (err) {
             console.error('Erreur lors de l\'ajout du repas:', err);
@@ -372,7 +328,6 @@ export default function PlannerPage() {
     );
 
     const generateShoppingList = () => {
-        // Logique pour générer la liste de courses
         console.log("Génération de la liste de courses...");
         alert("Fonctionnalité de liste de courses à venir !");
     };
@@ -388,12 +343,12 @@ export default function PlannerPage() {
                 <div className="planner-header">
                     <div className="planner-badge">
                         <Calendar className="icon-sm" />
-                        <span>Planificateur de repas</span>
+                        <span>Planificateur</span>
                     </div>
 
-                    <h1 className="planner-title">Planifiez vos repas de la semaine</h1>
+                    <h1 className="planner-title">Organisez vos <span className="title-accent">repas</span></h1>
                     <p className="planner-subtitle">
-                        Organisez vos repas à l'avance et générez automatiquement votre liste de courses.
+                        Planifiez votre semaine et simplifiez vos courses
                     </p>
                 </div>
 
@@ -416,11 +371,11 @@ export default function PlannerPage() {
                         {/* Week Selector and Stats */}
                         <div className="planner-controls">
                             <div className="controls-left">
-                                <button className="btn btn-outline">
+                                <button className="btn btn-week">
                                     <Calendar className="icon-sm" />
                                     {selectedWeek}
                                 </button>
-                                <span className="badge badge-secondary">
+                                <span className="badge-meals">
                                     {totalMeals} repas planifié{totalMeals > 1 ? 's' : ''}
                                 </span>
                             </div>
@@ -436,81 +391,81 @@ export default function PlannerPage() {
                                 </button>
                                 <Link to="/suggestions" className="btn btn-outline">
                                     <Plus className="icon-sm" />
-                                    Ajouter des recettes
+                                    Recettes
                                 </Link>
                             </div>
                         </div>
 
-                {/* Weekly Planner Grid */}
-                <div className="planner-grid">
-                    {DAYS.map((day) => (
-                        <div key={day} className="day-card">
-                            <div className="day-header">
-                                <h3 className="day-title">{day}</h3>
-                            </div>
-                            <div className="day-content">
-                                <div className="meals-grid">
-                                    {MEALS.map((meal) => {
-                                        const plannedMeal = plannedMeals[day]?.[meal];
+                        {/* Weekly Planner Grid */}
+                        <div className="planner-grid">
+                            {DAYS.map((day) => (
+                                <div key={day} className="day-card">
+                                    <div className="day-header">
+                                        <h3 className="day-title">{day}</h3>
+                                    </div>
+                                    <div className="day-content">
+                                        <div className="meals-grid">
+                                            {MEALS.map((meal) => {
+                                                const plannedMeal = plannedMeals[day]?.[meal];
 
-                                        return (
-                                            <div key={meal} className="meal-slot">
-                                                <h4 className="meal-label">{meal}</h4>
+                                                return (
+                                                    <div key={meal} className="meal-slot">
+                                                        <h4 className="meal-label">{meal}</h4>
 
-                                                {plannedMeal ? (
-                                                    <div className="meal-card">
-                                                        <div className="meal-image">
-                                                            <LazyImage
-                                                                src={plannedMeal.image || RECIPE_PLACEHOLDER_URL}
-                                                                alt={plannedMeal.title}
-                                                                className="meal-image-img"
-                                                            />
-                                                        </div>
-                                                        <div className="meal-info">
-                                                            <h5 className="meal-title">{plannedMeal.title}</h5>
-                                                            <div className="meal-meta">
-                                                                {plannedMeal.cookTime && (
-                                                                    <div className="meta-item">
-                                                                        <Clock className="icon-xs" />
-                                                                        <span>{plannedMeal.cookTime}</span>
+                                                        {plannedMeal ? (
+                                                            <div className="meal-card">
+                                                                <div className="meal-image">
+                                                                    <LazyImage
+                                                                        src={plannedMeal.image || RECIPE_PLACEHOLDER_URL}
+                                                                        alt={plannedMeal.title}
+                                                                        className="meal-image-img"
+                                                                    />
+                                                                </div>
+                                                                <div className="meal-info">
+                                                                    <h5 className="meal-title">{plannedMeal.title}</h5>
+                                                                    <div className="meal-meta">
+                                                                        {plannedMeal.cookTime && (
+                                                                            <div className="meta-item">
+                                                                                <Clock className="icon-xs" />
+                                                                                <span>{plannedMeal.cookTime}</span>
+                                                                            </div>
+                                                                        )}
+                                                                        {plannedMeal.servings && (
+                                                                            <div className="meta-item">
+                                                                                <Users className="icon-xs" />
+                                                                                <span>{plannedMeal.servings}</span>
+                                                                            </div>
+                                                                        )}
                                                                     </div>
-                                                                )}
-                                                                {plannedMeal.servings && (
-                                                                    <div className="meta-item">
-                                                                        <Users className="icon-xs" />
-                                                                        <span>{plannedMeal.servings}</span>
-                                                                    </div>
-                                                                )}
+                                                                </div>
+                                                                <button
+                                                                    className="btn-remove-meal"
+                                                                    onClick={() => removeMeal(day, meal)}
+                                                                    title="Retirer ce repas"
+                                                                >
+                                                                    <Trash2 className="icon-xs" />
+                                                                </button>
                                                             </div>
-                                                        </div>
-                                                        <button
-                                                            className="btn-remove-meal"
-                                                            onClick={() => removeMeal(day, meal)}
-                                                            title="Retirer ce repas"
-                                                        >
-                                                            <Trash2 className="icon-xs" />
-                                                        </button>
+                                                        ) : (
+                                                            <div className="meal-empty">
+                                                                <button
+                                                                    className="btn-add-meal"
+                                                                    onClick={() => addMeal(day, meal)}
+                                                                    type="button"
+                                                                >
+                                                                    <Plus className="icon-md" />
+                                                                    <span className="add-text">Ajouter</span>
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                ) : (
-                                                    <div className="meal-empty">
-                                                        <button 
-                                                            className="btn-add-meal"
-                                                            onClick={() => addMeal(day, meal)}
-                                                            type="button"
-                                                        >
-                                                            <Plus className="icon-md" />
-                                                            <span className="add-text">Ajouter un repas</span>
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                            ))}
                         </div>
-                    ))}
-                </div>
 
                         {/* Empty State */}
                         {totalMeals === 0 && (
@@ -518,7 +473,7 @@ export default function PlannerPage() {
                                 <Calendar className="empty-icon" />
                                 <h3 className="empty-title">Votre planificateur est vide</h3>
                                 <p className="empty-description">
-                                    Commencez à planifier vos repas pour la semaine en ajoutant des recettes.
+                                    Commencez à planifier vos repas pour la semaine
                                 </p>
                                 <Link to="/suggestions" className="btn btn-primary">
                                     <ChefHat className="icon-sm" />
@@ -530,18 +485,11 @@ export default function PlannerPage() {
                         {/* Tips Card */}
                         <div className="tips-card">
                             <div className="tips-header">
-                                <h3 className="tips-title">
-                                    <ChefHat className="icon-sm text-accent" />
-                                    Conseils pour bien planifier
-                                </h3>
+                                <ChefHat className="icon-sm" />
+                                <h3 className="tips-title">Astuce</h3>
                             </div>
                             <div className="tips-content">
-                                <ul className="tips-list">
-                                    <li>• Planifiez vos repas en fonction de votre emploi du temps</li>
-                                    <li>• Variez les types de cuisine pour éviter la monotonie</li>
-                                    <li>• Préparez certains ingrédients à l'avance le weekend</li>
-                                    <li>• Utilisez la liste de courses générée pour optimiser vos achats</li>
-                                </ul>
+                                <p>Planifiez vos repas selon votre emploi du temps et variez les types de cuisine pour éviter la monotonie.</p>
                             </div>
                         </div>
                     </>

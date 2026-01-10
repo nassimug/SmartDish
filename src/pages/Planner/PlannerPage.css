@@ -1,68 +1,83 @@
-/* Variables */
+/* Import de polices élégantes */
+@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Inter:wght@400;500;600;700&display=swap');
+
+/* Variables CSS - Palette Culinaire */
 :root {
-    --primary: #4CAF50;
-    --primary-light: rgba(76, 175, 80, 0.1);
-    --accent: #FF9800;
-    --accent-light: rgba(255, 152, 0, 0.1);
-    --text-primary: #1a1a1a;
-    --text-secondary: #666666;
-    --border: #e0e0e0;
-    --border-dashed: rgba(102, 102, 102, 0.2);
-    --background: #ffffff;
-    --background-muted: #f5f5f5;
+    --basilic: #4A7C59;
+    --basilic-light: #6B9A7A;
+    --basilic-dark: #2F5940;
+    --carotte: #E67E22;
+    --citron: #F39C12;
+    --tomate: #E74C3C;
+    --cream: #FFFAF5;
+    --lait: #F8F9FA;
+    --charcoal: #2C3E50;
+    --gray: #7F8C8D;
+
+    --font-heading: 'Libre Baskerville', Georgia, serif;
+    --font-body: 'Inter', system-ui, sans-serif;
+
+    --shadow-sm: 0 2px 8px rgba(74, 124, 89, 0.08);
+    --shadow-md: 0 4px 16px rgba(74, 124, 89, 0.12);
+    --shadow-lg: 0 8px 24px rgba(74, 124, 89, 0.16);
 }
 
-/* Page principale */
+/* ========== BASE ========== */
 .planner-page {
-    min-height: calc(100vh - 64px);
-    background: linear-gradient(135deg,
-    var(--background) 0%,
-    var(--primary-light) 50%,
-    var(--accent-light) 100%
-    );
-    padding: 3rem 1rem;
+    min-height: 100vh;
+    background: linear-gradient(to bottom, var(--cream), var(--lait));
+    padding: 2rem 1rem;
+    font-family: var(--font-body);
 }
 
 .planner-container {
-    max-width: 1536px;
+    max-width: 1400px;
     margin: 0 auto;
 }
 
-/* Header */
+/* ========== HEADER ========== */
 .planner-header {
     text-align: center;
-    margin-bottom: 3rem;
+    margin-bottom: 2.5rem;
 }
 
 .planner-badge {
     display: inline-flex;
     align-items: center;
-    gap: 0.75rem;
-    background-color: var(--primary-light);
-    padding: 0.75rem 1.5rem;
-    border-radius: 9999px;
-    margin-bottom: 1.5rem;
-    color: var(--primary);
-    font-weight: 500;
-    font-size: 0.875rem;
+    gap: 0.5rem;
+    background: var(--basilic);
+    color: white;
+    padding: 0.5rem 1.25rem;
+    border-radius: 50px;
+    margin-bottom: 1rem;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .planner-title {
-    font-size: 2rem;
+    font-family: var(--font-heading);
+    font-size: clamp(2rem, 4vw, 2.5rem);
     font-weight: 700;
-    margin-bottom: 1rem;
-    color: var(--text-primary);
+    color: var(--charcoal);
+    line-height: 1.2;
+    margin: 0 0 0.75rem;
+}
+
+.title-accent {
+    color: var(--basilic);
 }
 
 .planner-subtitle {
-    font-size: 1.125rem;
-    color: var(--text-secondary);
-    max-width: 42rem;
+    font-size: 1rem;
+    color: var(--gray);
+    max-width: 600px;
     margin: 0 auto;
     line-height: 1.6;
 }
 
-/* Controls */
+/* ========== CONTROLS ========== */
 .planner-controls {
     display: flex;
     flex-direction: column;
@@ -79,86 +94,111 @@
 
 .controls-right {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.75rem;
     flex-wrap: wrap;
 }
 
-/* Badge */
-.badge {
-    display: inline-flex;
+.btn-week {
+    display: flex;
     align-items: center;
-    padding: 0.375rem 0.75rem;
-    border-radius: 6px;
+    gap: 0.5rem;
+    padding: 0.875rem 1.5rem;
+    background: white;
+    border: 1.5px solid #E8EAED;
+    border-radius: 12px;
+    color: var(--charcoal);
+    font-weight: 600;
+    font-size: 0.9375rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-week:hover {
+    background: var(--lait);
+    border-color: var(--basilic);
+}
+
+.badge-meals {
+    display: inline-flex;
+    padding: 0.625rem 1rem;
+    background: var(--lait);
+    color: var(--charcoal);
+    border-radius: 10px;
     font-size: 0.875rem;
-    font-weight: 500;
+    font-weight: 600;
+    border: 1.5px solid #E8EAED;
 }
 
-.badge-secondary {
-    background-color: var(--background-muted);
-    color: var(--text-primary);
-}
-
-/* Planner Grid */
+/* ========== PLANNER GRID ========== */
 .planner-grid {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
 }
 
-/* Day Card */
+/* ========== DAY CARD ========== */
 .day-card {
-    background: var(--background);
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    background: white;
+    border-radius: 16px;
+    border: 1.5px solid #E8EAED;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
 }
 
 .day-header {
-    padding: 1.5rem;
-    border-bottom: 1px solid var(--border);
+    padding: 1.25rem 1.5rem;
+    background: linear-gradient(135deg, var(--lait) 0%, white 100%);
+    border-bottom: 1.5px solid #E8EAED;
 }
 
 .day-title {
+    font-family: var(--font-heading);
     font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--text-primary);
+    font-weight: 700;
+    color: var(--charcoal);
+    margin: 0;
 }
 
 .day-content {
-    padding: 1.5rem;
+    padding: 1.25rem;
 }
 
-/* Meals Grid */
+/* ========== MEALS GRID ========== */
 .meals-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 1rem;
+    gap: 1.25rem;
 }
 
 .meal-slot {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.625rem;
 }
 
 .meal-label {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--gray);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin: 0;
 }
 
-/* Meal Card (with recipe) */
+/* ========== MEAL CARD ========== */
 .meal-card {
     position: relative;
-    background: var(--background);
-    border: 1px solid var(--border);
-    border-radius: 8px;
+    background: white;
+    border: 1.5px solid #E8EAED;
+    border-radius: 12px;
     overflow: hidden;
-    transition: all 0.2s ease;
+    transition: all 0.3s ease;
 }
 
 .meal-card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--basilic);
 }
 
 .meal-card:hover .btn-remove-meal {
@@ -168,6 +208,7 @@
 .meal-image {
     aspect-ratio: 16 / 9;
     overflow: hidden;
+    background: var(--lait);
 }
 
 .meal-image img,
@@ -187,92 +228,95 @@
 }
 
 .meal-info {
-    padding: 0.75rem;
+    padding: 1rem;
 }
 
 .meal-title {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--text-primary);
-    margin-bottom: 0.5rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--charcoal);
+    margin: 0 0 0.625rem 0;
     line-height: 1.3;
 }
 
 .meal-meta {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.75rem;
-    color: var(--text-secondary);
+    gap: 1rem;
+    font-size: 0.8125rem;
+    color: var(--gray);
 }
 
 .meta-item {
     display: flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.375rem;
 }
 
-/* Remove Meal Button */
+/* ========== REMOVE BUTTON ========== */
 .btn-remove-meal {
     position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    width: 24px;
-    height: 24px;
+    top: 0.75rem;
+    right: 0.75rem;
+    width: 32px;
+    height: 32px;
     padding: 0;
     border: none;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.9);
-    color: #f44336;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.95);
+    color: var(--tomate);
     cursor: pointer;
     opacity: 0;
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .btn-remove-meal:hover {
-    background: white;
+    background: var(--tomate);
+    color: white;
     transform: scale(1.1);
 }
 
-/* Empty Meal Slot */
+/* ========== EMPTY MEAL SLOT ========== */
 .meal-empty {
-    border: 2px dashed var(--border-dashed);
-    border-radius: 8px;
-    padding: 1.5rem;
+    border: 2px dashed #D0D0D0;
+    border-radius: 12px;
+    padding: 1.25rem;
     text-align: center;
     transition: all 0.2s ease;
+    background: var(--lait);
 }
 
 .meal-empty:hover {
-    border-color: var(--primary);
-    background-color: rgba(76, 175, 80, 0.02);
+    border-color: var(--basilic);
+    background: rgba(74, 124, 89, 0.05);
 }
 
 .btn-add-meal {
     background: transparent;
     border: none;
     cursor: pointer;
-    color: var(--text-secondary);
+    color: var(--gray);
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 0.5rem;
     transition: color 0.2s ease;
     width: 100%;
+    font-weight: 600;
 }
 
 .btn-add-meal:hover {
-    color: var(--primary);
+    color: var(--basilic);
 }
 
 .add-text {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
 }
 
-/* Empty State */
+/* ========== EMPTY STATE ========== */
 .empty-state {
     text-align: center;
     padding: 4rem 1rem;
@@ -283,102 +327,102 @@
     width: 64px;
     height: 64px;
     margin: 0 auto 1.5rem;
-    color: var(--text-secondary);
-    opacity: 0.5;
+    color: var(--gray);
+    opacity: 0.3;
 }
 
 .empty-title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: var(--text-primary);
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--charcoal);
     margin-bottom: 0.75rem;
 }
 
 .empty-description {
-    color: var(--text-secondary);
-    font-size: 0.95rem;
+    color: var(--gray);
+    font-size: 0.9375rem;
     margin-bottom: 1.5rem;
     line-height: 1.6;
 }
 
-/* Tips Card */
+/* ========== TIPS CARD ========== */
 .tips-card {
     margin-top: 2rem;
-    background: var(--accent-light);
-    border: 1px solid rgba(255, 152, 0, 0.2);
-    border-radius: 12px;
+    background: white;
+    border: 1.5px solid #E8EAED;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
 }
 
 .tips-header {
-    padding: 1.5rem;
-    border-bottom: 1px solid rgba(255, 152, 0, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 1.25rem 1.5rem;
+    background: linear-gradient(135deg, rgba(74, 124, 89, 0.05) 0%, white 100%);
+    border-bottom: 1.5px solid #E8EAED;
 }
 
 .tips-title {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--charcoal);
+    margin: 0;
+}
+
+.tips-header .icon-sm {
+    color: var(--basilic);
 }
 
 .tips-content {
     padding: 1.5rem;
 }
 
-.tips-list {
-    list-style: none;
-    padding: 0;
+.tips-content p {
     margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.tips-list li {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
+    font-size: 0.9375rem;
+    color: var(--gray);
     line-height: 1.6;
 }
 
-/* Buttons */
+/* ========== BUTTONS ========== */
 .btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    font-weight: 500;
-    font-size: 0.95rem;
+    padding: 0.875rem 1.5rem;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.9375rem;
     text-decoration: none;
     border: none;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.3s ease;
 }
 
 .btn-primary {
-    background-color: var(--primary);
+    background: var(--basilic);
     color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-    background-color: #45a049;
+    background: var(--basilic-dark);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
 }
 
 .btn-outline {
-    background-color: transparent;
-    color: var(--text-primary);
-    border: 1px solid var(--border);
+    background: white;
+    color: var(--charcoal);
+    border: 1.5px solid #E8EAED;
 }
 
 .btn-outline:hover {
-    background-color: var(--background-muted);
-    border-color: var(--primary);
-    color: var(--primary);
+    background: var(--lait);
+    border-color: var(--basilic);
+    color: var(--basilic);
 }
 
 .btn:disabled {
@@ -387,40 +431,39 @@
     pointer-events: none;
 }
 
-/* Icons */
+/* ========== ICONS ========== */
 .icon-sm {
     width: 16px;
     height: 16px;
+    flex-shrink: 0;
 }
 
 .icon-md {
     width: 24px;
     height: 24px;
+    flex-shrink: 0;
 }
 
 .icon-xs {
     width: 12px;
     height: 12px;
+    flex-shrink: 0;
 }
 
-.text-accent {
-    color: var(--accent);
-}
-
-/* Error Banner */
+/* ========== ERROR BANNER ========== */
 .error-banner {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    background-color: #fee;
-    border: 1px solid #fcc;
-    color: #c33;
-    padding: 1rem;
-    border-radius: 8px;
+    background: rgba(231, 76, 60, 0.1);
+    border: 1.5px solid rgba(231, 76, 60, 0.3);
+    color: var(--tomate);
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
     margin-bottom: 1.5rem;
 }
 
-/* Loading State */
+/* ========== LOADING STATE ========== */
 .loading-state {
     display: flex;
     flex-direction: column;
@@ -430,13 +473,14 @@
     gap: 1rem;
 }
 
-.loading-state .spinner {
+.loading-state .spinner,
+.spinner {
     width: 48px;
     height: 48px;
-    border: 4px solid var(--border);
-    border-top-color: var(--primary);
+    border: 3px solid var(--lait);
+    border-top-color: var(--basilic);
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+    animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {
@@ -446,44 +490,18 @@
 }
 
 .loading-state p {
-    color: var(--text-secondary);
-    font-size: 0.875rem;
+    color: var(--gray);
+    font-size: 0.9375rem;
 }
 
-/* Responsive */
-@media (min-width: 640px) {
-    .planner-controls {
-        flex-direction: row;
-        justify-content: space-between;
-        align-items: center;
-    }
-}
-
-@media (min-width: 768px) {
-    .meals-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
-
-    .planner-title {
-        font-size: 2.5rem;
-    }
-}
-
-@media (min-width: 1024px) {
-    .planner-title {
-        font-size: 2.5rem;
-    }
-}
-
-/* Modal de sélection de recette */
+/* ========== MODAL ========== */
 .modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(0, 0, 0, 0.6);
-    -webkit-backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
@@ -494,18 +512,14 @@
 }
 
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .modal-content {
-    background-color: var(--background);
-    border-radius: 24px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    background: white;
+    border-radius: 20px;
+    box-shadow: var(--shadow-lg);
     max-width: 1100px;
     width: 100%;
     max-height: 90vh;
@@ -530,34 +544,34 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    padding: 2rem 2.5rem 1.75rem 2.5rem;
-    border-bottom: 1px solid var(--border);
-    background: linear-gradient(135deg, rgba(76, 175, 80, 0.02), rgba(255, 255, 255, 1));
+    padding: 2rem 2.5rem;
+    border-bottom: 1.5px solid #E8EAED;
+    background: linear-gradient(135deg, rgba(74, 124, 89, 0.03), white);
 }
 
 .modal-title {
-    font-size: 1.875rem;
+    font-family: var(--font-heading);
+    font-size: 1.75rem;
     font-weight: 700;
-    color: #1a1a1a;
+    color: var(--charcoal);
     margin: 0;
     line-height: 1.2;
 }
 
 .modal-subtitle {
-    color: #4CAF50;
-    font-size: 1.0625rem;
+    color: var(--basilic);
+    font-size: 1rem;
     font-weight: 600;
-    margin-top: 0.625rem;
-    letter-spacing: 0.01em;
+    margin-top: 0.5rem;
 }
 
 .btn-close {
     background: transparent;
     border: none;
     cursor: pointer;
-    color: var(--text-secondary);
+    color: var(--gray);
     padding: 0.75rem;
-    border-radius: 12px;
+    border-radius: 10px;
     transition: all 0.2s;
     display: flex;
     align-items: center;
@@ -565,129 +579,96 @@
 }
 
 .btn-close:hover {
-    background-color: var(--background-muted);
-    color: var(--text-primary);
+    background: var(--lait);
+    color: var(--charcoal);
 }
 
 .modal-search {
-    position: relative;
-    padding: 2rem 2.5rem;
-    background: linear-gradient(135deg, #f8fdf8 0%, #fffbf5 100%);
-    border-bottom: 2px solid rgba(76, 175, 80, 0.1);
+    padding: 1.5rem 2.5rem;
+    background: var(--lait);
+    border-bottom: 1.5px solid #E8EAED;
     display: flex;
     align-items: center;
     gap: 1rem;
 }
 
 .search-icon {
-    position: relative;
-    left: auto;
-    top: auto;
-    transform: none;
-    color: #4CAF50;
-    width: 24px;
-    height: 24px;
+    color: var(--basilic);
+    width: 20px;
+    height: 20px;
     flex-shrink: 0;
-    opacity: 0.85;
-    transition: opacity 0.2s;
-    margin-left: 0.25rem;
 }
 
 .search-input {
     flex: 1;
-    padding: 1.125rem 1.5rem;
-    border: 2px solid #d0d0d0;
-    border-radius: 16px;
-    font-size: 1rem;
-    background-color: #ffffff;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), inset 0 1px 3px rgba(0, 0, 0, 0.05);
-    color: var(--text-primary);
-    font-weight: 400;
-    line-height: 1.5;
+    padding: 1rem 1.25rem;
+    border: 1.5px solid #E8EAED;
+    border-radius: 12px;
+    font-size: 0.9375rem;
+    background: white;
+    transition: all 0.2s ease;
 }
 
 .search-input::placeholder {
-    color: #999999;
-    font-weight: 400;
+    color: var(--gray);
 }
 
 .search-input:hover {
-    border-color: #4CAF50;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1), inset 0 1px 3px rgba(0, 0, 0, 0.05);
-    transform: translateY(-1px);
+    border-color: var(--basilic);
 }
 
 .search-input:focus {
     outline: none;
-    border-color: #4CAF50;
-    border-width: 2.5px;
-    box-shadow: 0 8px 24px rgba(76, 175, 80, 0.2), 0 0 0 4px rgba(76, 175, 80, 0.1);
-    background-color: #ffffff;
-}
-
-.search-input:focus + .search-icon {
-    opacity: 1;
+    border-color: var(--basilic);
+    box-shadow: 0 0 0 3px rgba(74, 124, 89, 0.1);
 }
 
 .modal-body {
     flex: 1;
     overflow-y: auto;
-    padding: 2.5rem;
-    background-color: #fafafa;
+    padding: 2rem;
+    background: white;
 }
 
 .recipes-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 2rem;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
 }
 
 .recipe-card-modal {
-    background-color: #ffffff;
-    border: 1px solid #e0e0e0;
-    border-radius: 18px;
+    background: white;
+    border: 1.5px solid #E8EAED;
+    border-radius: 16px;
     overflow: hidden;
     cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
     height: 100%;
     display: flex;
     flex-direction: column;
+    box-shadow: var(--shadow-sm);
 }
 
 .recipe-card-modal:hover {
-    transform: translateY(-8px) scale(1.02);
-    box-shadow: 0 16px 40px rgba(76, 175, 80, 0.2), 0 8px 16px rgba(0, 0, 0, 0.12);
-    border-color: #4CAF50;
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--basilic);
 }
 
 .recipe-image-modal {
     width: 100%;
-    height: 200px;
+    height: 180px;
     overflow: hidden;
-    background: linear-gradient(135deg, #f0f9f1, #fff8f0);
+    background: var(--lait);
     position: relative;
     flex-shrink: 0;
-}
-
-.recipe-image-modal::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 50%;
-    background: linear-gradient(to top, rgba(0,0,0,0.4), transparent);
-    pointer-events: none;
 }
 
 .recipe-rating-badge {
     position: absolute;
     top: 0.75rem;
     right: 0.75rem;
-    background-color: rgba(255, 255, 255, 0.95);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(8px);
     padding: 0.375rem 0.625rem;
     border-radius: 20px;
@@ -696,14 +677,9 @@
     gap: 0.25rem;
     font-size: 0.8125rem;
     font-weight: 600;
-    color: #FF9800;
+    color: var(--citron);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     z-index: 1;
-}
-
-.recipe-rating-badge .icon-xs {
-    width: 14px;
-    height: 14px;
 }
 
 .recipe-image-modal img,
@@ -728,7 +704,7 @@
 }
 
 .recipe-info-modal {
-    padding: 1.5rem;
+    padding: 1.25rem;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -736,9 +712,9 @@
 }
 
 .recipe-title-modal {
-    font-size: 1.0625rem;
+    font-size: 1rem;
     font-weight: 700;
-    color: #1a1a1a;
+    color: var(--charcoal);
     margin: 0;
     line-height: 1.4;
     min-height: 2.8rem;
@@ -746,15 +722,14 @@
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    letter-spacing: -0.01em;
 }
 
 .recipe-meta-modal {
     display: flex;
-    gap: 1rem;
+    gap: 0.75rem;
     flex-wrap: wrap;
-    font-size: 0.875rem;
-    color: #666;
+    font-size: 0.8125rem;
+    color: var(--gray);
     margin-top: auto;
 }
 
@@ -762,46 +737,51 @@
     display: flex;
     align-items: center;
     gap: 0.375rem;
-    background-color: rgba(76, 175, 80, 0.08);
+    background: rgba(74, 124, 89, 0.08);
     padding: 0.375rem 0.75rem;
     border-radius: 8px;
 }
 
 .recipe-meta-modal .icon-xs {
-    color: #4CAF50;
+    color: var(--basilic);
     flex-shrink: 0;
 }
 
 .recipe-feedback-count {
     margin-top: 0.5rem;
     padding-top: 0.75rem;
-    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    border-top: 1px solid #E8EAED;
     font-size: 0.8125rem;
-    color: #888;
-    font-style: normal;
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
+    color: var(--gray);
 }
 
-@media (max-width: 768px) {
+/* ========== RESPONSIVE ========== */
+@media (min-width: 640px) {
+    .planner-controls {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+}
+
+@media (min-width: 768px) {
+    .meals-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 767px) {
     .recipes-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .modal-content {
         max-height: 95vh;
         border-radius: 20px 20px 0 0;
     }
-    
-    .modal-header {
-        padding: 1.5rem;
-    }
-    
-    .modal-search {
-        padding: 1rem 1.5rem;
-    }
-    
+
+    .modal-header,
+    .modal-search,
     .modal-body {
         padding: 1.5rem;
     }

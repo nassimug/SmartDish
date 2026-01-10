@@ -24,7 +24,7 @@ const CATEGORIES = [
 
 export default function IngredientsPage() {
     const [selectedIngredients, setSelectedIngredients] = useState([]);
-    const [searchTerm, setSearchTerm] = useState("");
+    const [searchTerm] = useState("");
     const [customIngredient, setCustomIngredient] = useState("");
 
     const addIngredient = (ingredient) => {
@@ -65,13 +65,12 @@ export default function IngredientsPage() {
                 <div className="ingredients-header">
                     <div className="step-badge">
                         <ChefHat className="icon-sm" />
-                        <span>Étape 1 sur 3</span>
+                        <span>Sélection d'ingrédients</span>
                     </div>
 
-                    <h1 className="ingredients-title">Quels ingrédients avez-vous ?</h1>
+                    <h1 className="ingredients-title">Quels <span className="title-accent">ingrédients</span> avez-vous ?</h1>
                     <p className="ingredients-subtitle">
-                        Sélectionnez ou ajoutez les ingrédients disponibles dans votre cuisine. Plus vous en ajoutez, plus nos
-                        suggestions seront précises !
+                        Sélectionnez vos ingrédients et découvrez des recettes personnalisées
                     </p>
                 </div>
 
@@ -103,17 +102,6 @@ export default function IngredientsPage() {
                                     >
                                         <Plus className="icon-sm" />
                                     </button>
-                                </div>
-
-                                <div className="search-wrapper">
-                                    <Search className="search-icon" />
-                                    <input
-                                        type="text"
-                                        placeholder="Filtrer les ingrédients populaires..."
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="search-input"
-                                    />
                                 </div>
                             </div>
                         </div>
@@ -175,7 +163,7 @@ export default function IngredientsPage() {
                             <div className="card-header">
                                 <h3 className="card-title">
                                     <span>Mes ingrédients</span>
-                                    <span className="badge badge-secondary">{selectedIngredients.length}</span>
+                                    <span className="badge badge-count">{selectedIngredients.length}</span>
                                 </h3>
                             </div>
                             <div className="card-content">
@@ -183,7 +171,7 @@ export default function IngredientsPage() {
                                     <div className="empty-state">
                                         <ChefHat className="empty-icon" />
                                         <p className="empty-text">Aucun ingrédient sélectionné</p>
-                                        <p className="empty-hint">Cliquez sur les ingrédients ci-contre pour les ajouter</p>
+                                        <p className="empty-hint">Cliquez sur les ingrédients pour les ajouter</p>
                                     </div>
                                 ) : (
                                     <>
@@ -221,22 +209,6 @@ export default function IngredientsPage() {
                                         </div>
                                     </>
                                 )}
-                            </div>
-                        </div>
-
-                        {/* Tips Card */}
-                        <div className="card tips-card">
-                            <div className="card-header">
-                                <h3 className="card-title">
-                                    <Sparkles className="icon-sm text-accent" />
-                                    Conseil de chef
-                                </h3>
-                            </div>
-                            <div className="card-content">
-                                <p className="tips-text">
-                                    N'hésitez pas à ajouter vos condiments, épices et herbes ! Ils peuvent transformer une recette simple
-                                    en plat extraordinaire.
-                                </p>
                             </div>
                         </div>
                     </div>
