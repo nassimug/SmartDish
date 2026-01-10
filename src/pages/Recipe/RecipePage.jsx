@@ -163,7 +163,7 @@ export default function RecipePage() {
 
                 // Récupérer la recette (version async optimisée)
                 const data = await recipesService.getRecetteByIdAsync(recipeId);
-
+                console.log("Données brutes reçues du Backend:", data);
                 // Récupérer les feedbacks pour la note
                 let note = data.noteMoyenne || 0;
                 let nombreAvis = data.nombreFeedbacks || 0;
@@ -213,6 +213,7 @@ export default function RecipePage() {
                         principal: ing.principal
                     })) || [],
 
+                    
                     // Mapper les étapes
                     steps: (data.etapes || data.instructions || []).sort((a, b) => {
                         // Tri robuste par l'ordre ou par l'ID si l'ordre est absent
@@ -239,7 +240,7 @@ export default function RecipePage() {
 
                     substitutions: []
                 };
-
+                console.log("Nombre d'étapes trouvées:", mappedRecipe.steps.length);
                 // Essayer de récupérer une image (préférence: directUrl > stream > presigned)
                 try {
                     const imgs = await recipesService.getImages(recipeId);
@@ -691,6 +692,10 @@ export default function RecipePage() {
                 </Link>
             </div>
 
+            <p className="recipe-description-text">
+                <br />
+            </p>
+
             {/* 2. Titre de la recette */}
             <h1 className="recipe-main-title">{recipe.title || recipe.titre}</h1>
 
@@ -717,11 +722,12 @@ export default function RecipePage() {
             </div>
 
             {/* 4. Image de la recette */}
-            <div className="recipe-hero-image">
+                <div className="recipe-header-grid">
+                    <div className="recipe-image-container">
                         <img
                             src={(images[0]?.displayUrl) || recipe.image || recipe.imageUrl || RECIPE_PLACEHOLDER_URL}
                             alt={recipe.title || recipe.titre}
-                            className="recipe-hero-image"
+                            className="recipe-main-image"
                             onError={(e) => {
                                 console.warn('❌ Erreur chargement image recette:', recipe.imageUrl);
                                 e.target.src = RECIPE_PLACEHOLDER_URL;
@@ -736,8 +742,8 @@ export default function RecipePage() {
                                 📷 Gérer les images
                             </button>
                         )}
-            </div>
-            
+                    </div>
+                </div>
             
             <div className="recipe-content-columns">
                 {/* 5. Colonne Description */}
@@ -766,6 +772,12 @@ export default function RecipePage() {
                                 <span className="stat-value">{recipe.difficulty}</span>
                             </div>
                         </div>
+                        <div className="core-stat-item">
+                            <Flame  size={20} />
+                            <div className="stat-content">
+                                <span className="stat-value">{recipe.kcal} Kcal </span>
+                            </div>
+                        </div>
                     </div>
                 </section>
 
@@ -777,7 +789,8 @@ export default function RecipePage() {
                             recipe.ingredients.map((ingredient, index) => (
                                 <div className="ingredient-item">
                                     <span className="ingredient-text">
-                                        <strong>{ingredient.name || ingredient.nom}</strong> {ingredient.quantity || ingredient.quantite}
+                                        <strong>{ingredient.name || ingredient.nom}</strong>
+                                        <span className="ingredient-quantity">{ingredient.quantity || ingredient.quantite}</span>
                                     </span>
                                 </div>
                             ))
@@ -796,7 +809,6 @@ export default function RecipePage() {
                     <div className="steps-list">
                         {recipe.steps.map((step, index) => (
                             <div key={step.step || index} className="step-item">
-                                <div className="step-number">{step.step || index + 1}</div>
                                 <div className="step-details">
                                     <div className="step-header">
                                         <h3 className="step-title">{step.title}</h3>
@@ -823,7 +835,6 @@ export default function RecipePage() {
                     <div className="container">
                         <div className="comments-header">
                             <h2 className="section-title">
-                                <Star className="icon-md" />
                                 Avis et commentaires
                                 <span className="reviews-count">({feedbacks.length})</span>
                             </h2>
