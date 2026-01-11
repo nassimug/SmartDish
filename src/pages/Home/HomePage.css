@@ -55,22 +55,6 @@
   background: var(--bg-dark);
 }
 
-/* .hero-gradient-bg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  
-  background: linear-gradient(
-    135deg,
-    rgba(217, 119, 6, 0.2) 0%,
-    rgba(146, 64, 14, 0.2) 50%,
-    rgba(249, 115, 22, 0.2) 100%
-  );
-  animation: gradientShift 15s ease infinite;
-} */
-
 .hero-gradient-bg {
   position: absolute;
   top: 0;
@@ -725,15 +709,6 @@
   text-align: center;
 }
 
-/* .footer-logo {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 1.5rem;
-  font-weight: 800;
-  margin-bottom: 1rem;
-} */
-
 .footer-tagline {
   /* color: rgba(255, 255, 255, 0.7); */
   color: rgba(33, 107, 27, 0.7);
@@ -1007,21 +982,19 @@
 /* Ajoutez ces styles à la fin de votre fichier HomePage.css */
 
 .footer-logo-image {
-    width: 100px; /* Ajustez selon la taille souhaitée */
-    height: 100px; /* Ajustez selon la taille souhaitée */
-    object-fit: contain; /* Pour garder les proportions */
+    width: 100px; 
+    height: 100px; 
+    object-fit: contain; 
     mix-blend-mode: multiply;
     filter: brightness(1.1) contrast(1.1);
 }
 
-/* Si vous retirez complètement l'icône et le texte, ajustez le conteneur */
 .footer-logo {
     display: flex;
     align-items: center;
     gap: 12px;
 }
 
-/* Si vous voulez que le logo soit plus grand */
 .footer-logo-image.large {
     width: 60px;
     height: 60px;
