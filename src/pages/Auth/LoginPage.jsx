@@ -4,6 +4,7 @@ import { ChefHat, Mail, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import authService from '../../services/api/auth.service';
 import { useAuth } from '../../context/AuthContext';
 import './AuthPage.css';
+import logo from '../../images/logo.png';
 
 export default function LoginPage() {
     const navigate = useNavigate();
@@ -98,8 +99,13 @@ export default function LoginPage() {
                 {/* Logo et titre */}
                 <div className="auth-header">
                     <Link to="/" className="auth-logo">
-                        <ChefHat className="logo-icon" />
-                        <span>SmartDish</span>
+                        {/* <ChefHat className="logo-icon" />
+                        <span>SmartDish</span> */}
+                        <img 
+                            src={logo} 
+                            alt="SmartDish Logo" 
+                            className="auth-logo-image"
+                        />
                     </Link>
                     <h1 className="auth-title">Connexion</h1>
                     <p className="auth-subtitle">

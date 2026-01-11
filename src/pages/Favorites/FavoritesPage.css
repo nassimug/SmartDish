@@ -3,26 +3,20 @@
 
 /* Variables CSS - Palette Culinaire */
 :root {
-    --basilic: #4A7C59;
-    --basilic-light: #6B9A7A;
-    --basilic-dark: #2F5940;
-    --carotte: #E67E22;
-    --citron: #F39C12;
-    --tomate: #E74C3C;
-    --cream: #FFFAF5;
-    --lait: #F8F9FA;
-    --charcoal: #2C3E50;
-    --gray: #7F8C8D;
-
-    --font-heading: 'Libre Baskerville', Georgia, serif;
-    --font-body: 'Inter', system-ui, sans-serif;
-
-    --shadow-sm: 0 2px 8px rgba(74, 124, 89, 0.08);
-    --shadow-md: 0 4px 16px rgba(74, 124, 89, 0.12);
-    --shadow-lg: 0 8px 24px rgba(74, 124, 89, 0.16);
+    --primary: #4CAF50;
+    --primary-light: rgba(76, 175, 80, 0.1);
+    --accent: #FF9800;
+    --accent-light: rgba(255, 152, 0, 0.1);
+    --red: #b2f08e;
+    --red-light: rgba(154, 237, 143, 0.1);
+    --text-primary: #1a1a1a;
+    --text-secondary: #666666;
+    --border: #e0e0e0;
+    --background: #ffffff;
+    --background-muted: #f5f5f5;
 }
 
-/* ========== BASE ========== */
+/* Page principale */
 .favorites-page {
     min-height: 100vh;
     background: linear-gradient(to bottom, var(--cream), var(--lait));

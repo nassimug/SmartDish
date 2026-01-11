@@ -579,3 +579,19 @@
         padding: 0.875rem 1rem;
     }
 }
+
+.auth-logo-image {
+    width: 100px;
+    height: 100px;
+    object-fit: contain;
+    
+    /* La technique la plus efficace pour supprimer le blanc */
+    background-blend-mode: multiply;
+    background-color: transparent;
+    
+    /* Rend le logo plus sombre pour masquer le blanc */
+    filter: brightness(0.8) contrast(1.2) saturate(1.1);
+    
+    /* Optionnel: ajouter une ombre pour détacher le logo */
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+}

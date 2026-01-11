@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import authService from '../../services/api/auth.service';
 import './AuthPage.css';
+import logo from '../../images/logo.png';
 
 export default function ResetPasswordPage() {
     const navigate = useNavigate();
@@ -107,8 +108,13 @@ export default function ResetPasswordPage() {
                 {/* Logo et titre */}
                 <div className="auth-header">
                     <Link to="/" className="auth-logo">
-                        <ChefHat className="logo-icon" />
-                        <span>SmartDish</span>
+                        {/* <ChefHat className="logo-icon" />
+                        <span>SmartDish</span> */}
+                        <img 
+                            src={logo} 
+                            alt="SmartDish Logo" 
+                            className="auth-logo-image"
+                        />
                     </Link>
                     <h1>Réinitialiser le mot de passe</h1>
                     <p className="auth-subtitle">

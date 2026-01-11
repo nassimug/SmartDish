@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import notificationService from '../../services/api/notification.service';
 import './Navigation.css';
+import logo from '../../images/logo.png';
 
 export function Navigation() {
     const [isOpen, setIsOpen] = useState(false);
@@ -129,8 +130,11 @@ export function Navigation() {
                 <div className="nav-content">
                     {/* Logo */}
                     <Link to="/" className="nav-logo">
-                        <ChefHat className="logo-icon" />
-                        <span>SmartDish</span>
+                         <img 
+                            src={logo} 
+                            alt="SmartDish Logo" 
+                            className="nav-logo-image"
+                        />
                     </Link>
 
                     {/* Desktop Navigation */}
@@ -268,7 +272,7 @@ export function Navigation() {
                                 </Link>
                                 <Link to="/register" className="btn btn-primary btn-sm">
                                     S'inscrire
-                                </Link>
+                                </Link> 
                             </>
                         )}
                     </div>
