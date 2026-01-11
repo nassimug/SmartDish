@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import {
     Clock, Star, Users, ChefHat, Heart, Sparkles,
@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import recipesService from '../../services/api/recipe.service';
 import feedbackService from '../../services/api/feedback.service';
+import { useAuth } from '../../hooks/useAuth';
 
 import { RECIPE_PLACEHOLDER_URL } from '../../utils/RecipePlaceholder';
 import './AIRecommendationsPage.css';
@@ -18,13 +19,37 @@ const DIFFICULTY_COLORS = {
 };
 
 export default function AIRecommendationsPage() {
+    const { user } = useAuth();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const [recipes, setRecipes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [selectedIngredients, setSelectedIngredients] = useState([]);
-    const [favorites, setFavorites] = useState([]);
+    const [favorites, setFavorites] = useState({}); // Changé en objet { recipeId: boolean }
+    const [loadingFavorites, setLoadingFavorites] = useState({}); // État de chargement par recette
+
+    // Charger les favoris de l'utilisateur
+    const loadUserFavorites = useCallback(async () => {
+        if (!user?.id) return;
+
+        try {
+            const userFavorites = await recipesService.getRecettesFavorites(user.id);
+            const favoritesMap = {};
+            userFavorites.forEach(recipe => {
+                favoritesMap[recipe.id] = true;
+            });
+            setFavorites(favoritesMap);
+            console.log('✅ Favoris chargés:', Object.keys(favoritesMap).length);
+        } catch (err) {
+            console.error('❌ Erreur chargement favoris:', err);
+        }
+    }, [user?.id]);
+
+    // Charger les favoris quand l'utilisateur est connecté
+    useEffect(() => {
+        loadUserFavorites();
+    }, [loadUserFavorites]);
 
     useEffect(() => {
         const loadAIRecommendations = async () => {
@@ -165,12 +190,51 @@ export default function AIRecommendationsPage() {
         loadAIRecommendations();
     }, [searchParams]);
 
-    const toggleFavorite = (recipeId) => {
-        setFavorites((prev) =>
-            prev.includes(recipeId)
-                ? prev.filter((id) => id !== recipeId)
-                : [...prev, recipeId]
-        );
+    // Toggle favori avec appel API
+    const toggleFavorite = async (recipeId) => {
+        // Vérifier si l'utilisateur est connecté
+        if (!user?.id) {
+            alert('Connectez-vous pour ajouter des favoris');
+            return;
+        }
+
+        // Empêcher les clics multiples
+        if (loadingFavorites[recipeId]) return;
+
+        // Marquer comme en cours de chargement
+        setLoadingFavorites(prev => ({ ...prev, [recipeId]: true }));
+
+        const isFavorite = favorites[recipeId];
+
+        try {
+            // Mise à jour optimiste de l'UI
+            setFavorites(prev => ({
+                ...prev,
+                [recipeId]: !isFavorite
+            }));
+
+            // Appel API
+            const result = await recipesService.toggleFavori(recipeId, user.id);
+
+            console.log(`${result.favori ? '❤️ Ajouté aux' : '💔 Retiré des'} favoris:`, recipeId);
+
+            // Synchroniser avec la réponse du serveur
+            setFavorites(prev => ({
+                ...prev,
+                [recipeId]: result.favori
+            }));
+
+        } catch (err) {
+            console.error('❌ Erreur toggle favori:', err);
+
+            // Annuler la mise à jour optimiste en cas d'erreur
+            setFavorites(prev => ({
+                ...prev,
+                [recipeId]: isFavorite
+            }));
+        } finally {
+            setLoadingFavorites(prev => ({ ...prev, [recipeId]: false }));
+        }
     };
 
     if (loading) {
@@ -283,14 +347,24 @@ export default function AIRecommendationsPage() {
 
                                         <div className="image-overlay">
                                             <button
-                                                className="favorite-button"
-                                                onClick={() => toggleFavorite(recipe.id)}
+                                                className={`favorite-button ${favorites[recipe.id] ? 'is-favorite' : ''} ${loadingFavorites[recipe.id] ? 'is-loading' : ''}`}
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    toggleFavorite(recipe.id);
+                                                }}
+                                                disabled={loadingFavorites[recipe.id]}
+                                                title={favorites[recipe.id] ? 'Retirer des favoris' : 'Ajouter aux favoris'}
                                             >
-                                                <Heart
-                                                    size={20}
-                                                    className={favorites.includes(recipe.id) ? 'is-favorite' : ''}
-                                                    fill={favorites.includes(recipe.id) ? 'currentColor' : 'none'}
-                                                />
+                                                {loadingFavorites[recipe.id] ? (
+                                                    <div className="spinner-tiny"></div>
+                                                ) : (
+                                                    <Heart
+                                                        size={20}
+                                                        className={favorites[recipe.id] ? 'heart-active' : ''}
+                                                        fill={favorites[recipe.id] ? 'currentColor' : 'none'}
+                                                    />
+                                                )}
                                             </button>
                                         </div>
 

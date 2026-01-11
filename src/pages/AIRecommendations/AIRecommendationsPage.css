@@ -642,3 +642,143 @@
         gap: 0.5rem;
     }
 }
+
+/* ========== FAVORITE BUTTON ENHANCED ========== */
+.favorite-button {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: rgba(255, 255, 255, 0.95);
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    color: var(--gray);
+    z-index: 10;
+}
+
+.favorite-button:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.favorite-button:hover svg {
+    color: var(--tomate);
+}
+
+/* État favori actif */
+.favorite-button.is-favorite {
+    background: var(--tomate);
+    color: white;
+}
+
+.favorite-button.is-favorite:hover {
+    background: #c0392b;
+}
+
+.favorite-button.is-favorite svg {
+    color: white;
+}
+
+.favorite-button .heart-active {
+    color: white;
+    fill: white;
+}
+
+/* État de chargement */
+.favorite-button.is-loading {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.favorite-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Spinner minuscule pour le bouton */
+.spinner-tiny {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-top-color: var(--tomate);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+.favorite-button.is-favorite .spinner-tiny {
+    border-color: rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+}
+
+/* Animation du cœur */
+@keyframes heartBeat {
+    0% { transform: scale(1); }
+    25% { transform: scale(1.3); }
+    50% { transform: scale(1); }
+    75% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+.favorite-button.is-favorite svg {
+    animation: heartBeat 0.6s ease-in-out;
+}
+
+/* Supprimer l'ancienne classe */
+.favorite-button .is-favorite {
+    color: var(--tomate);
+}
+
+/* Amélioration de l'overlay pour toujours voir le bouton favori */
+.image-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 40%);
+    opacity: 1; /* Toujours visible pour le bouton favori */
+    transition: opacity 0.3s;
+    pointer-events: none; /* Permet les clics à travers */
+}
+
+.image-overlay .favorite-button {
+    pointer-events: auto; /* Réactive les clics sur le bouton */
+}
+
+/* Notification toast (optionnel) */
+.toast-notification {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--charcoal);
+    color: white;
+    padding: 0.875rem 1.5rem;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.toast-notification.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+.toast-notification.success {
+    background: var(--basilic);
+}
+
+.toast-notification.error {
+    background: var(--tomate);
+}
