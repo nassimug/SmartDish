@@ -28,6 +28,9 @@ export default function RecipePage() {
     const { user } = useAuth();
     const recipeId = parseInt(id);
 
+    // États pour les portions des recettes
+    const [servings, setServings] = useState(0);
+
     // États
     const [recipe, setRecipe] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -57,7 +60,7 @@ export default function RecipePage() {
     // Vérifier si l'utilisateur est admin
     const isAdmin = user?.role === 'ADMIN';
 
-    // Charger les images (admin uniquement)
+    // Charger les images (tous utilisateurs)
     const loadImages = useCallback(async () => {
         try {
             const data = await recipesService.getImages(recipeId);
@@ -66,7 +69,17 @@ export default function RecipePage() {
                 const finalUrl = display ? normalizeImageUrl(display) : display;
                 return { ...img, displayUrl: finalUrl };
             });
+            console.log('Images stream chargées:', normalized);
             setImages(normalized);
+
+            // Si on a au moins une image stream, l'utiliser comme image principale affichée
+            if (normalized.length > 0 && normalized[0].displayUrl) {
+                setRecipe((prev) => prev ? {
+                    ...prev,
+                    image: normalized[0].displayUrl,
+                    imageUrl: normalized[0].displayUrl
+                } : prev);
+            }
         } catch (err) {
             console.error('Erreur chargement images:', err);
         }
@@ -91,18 +104,20 @@ export default function RecipePage() {
                         return feedback;
                     }
 
-                    // Sinon, essayer de récupérer les infos depuis ms-utilisateur
+                    // Sinon, essayer de récupérer les infos depuis ms-persistance (qui a accès à la DB)
                     if (feedback.utilisateurId) {
                         try {
-                            const response = await fetch(`http://localhost:8092/api/utilisateurs/${feedback.utilisateurId}`, {
+                            const token = localStorage.getItem('token');
+                            const response = await fetch(`http://localhost:8090/api/persistance/utilisateurs/${feedback.utilisateurId}`, {
                                 headers: {
-                                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                                    'Authorization': `Bearer ${token}`,
+                                    'Content-Type': 'application/json'
                                 }
                             });
 
                             if (response.ok) {
                                 const userData = await response.json();
-                                console.log('User data récupéré depuis ms-utilisateur:', userData);
+                                console.log('User data récupéré depuis ms-persistance:', userData);
                                 return {
                                     ...feedback,
                                     utilisateur: {
@@ -111,6 +126,8 @@ export default function RecipePage() {
                                         nom: userData.nom || 'Anonyme'
                                     }
                                 };
+                            } else {
+                                console.warn(`Réponse ${response.status} pour utilisateur ${feedback.utilisateurId}`);
                             }
                         } catch (error) {
                             console.error(`Erreur récupération utilisateur ${feedback.utilisateurId}:`, error);
@@ -160,7 +177,7 @@ export default function RecipePage() {
 
                 // Récupérer la recette (version async optimisée)
                 const data = await recipesService.getRecetteByIdAsync(recipeId);
-
+                console.log("Données brutes reçues du Backend:", data);
                 // Récupérer les feedbacks pour la note
                 let note = data.noteMoyenne || 0;
                 let nombreAvis = data.nombreFeedbacks || 0;
@@ -181,8 +198,9 @@ export default function RecipePage() {
                     title: data.titre,
                     titre: data.titre,
                     description: data.description || 'Délicieuse recette à découvrir !',
-                    image: data.imageUrl ? normalizeImageUrl(data.imageUrl) : data.imageUrl,
-                    imageUrl: data.imageUrl ? normalizeImageUrl(data.imageUrl) : data.imageUrl,
+                    // On évite d'utiliser l'URL MinIO retournée (403). On mettra à jour après getImages().
+                    image: null,
+                    imageUrl: null,
                     cookTime: data.tempsTotal ? `${data.tempsTotal} min` : 'N/A',
                     tempsPreparation: data.tempsTotal,
                     prepTime: data.tempsTotal ? `${data.tempsTotal} min` : 'N/A',
@@ -210,13 +228,17 @@ export default function RecipePage() {
                         principal: ing.principal
                     })) || [],
 
+                    
                     // Mapper les étapes
-                    steps: data.etapes?.sort((a, b) => a.ordre - b.ordre).map(etape => ({
-                        step: etape.ordre,
-                        ordre: etape.ordre,
-                        title: `Étape ${etape.ordre}`,
-                        instruction: etape.texte,
-                        texte: etape.texte,
+                    steps: (data.etapes || data.instructions || []).sort((a, b) => {
+                        // Tri robuste par l'ordre ou par l'ID si l'ordre est absent
+                        return (a.ordre || a.step || 0) - (b.ordre || b.step || 0);
+                    }).map(etape => ({
+                        step: etape.ordre || etape.step,
+                        ordre: etape.ordre || etape.step,
+                        title: etape.titre || `Étape ${etape.ordre || etape.step}`,
+                        // On s'assure que 'instruction' contient bien le texte de l'étape
+                        instruction: etape.texte || etape.instruction || etape.description,
                         duration: etape.temps ? `${etape.temps} min` : 'Quelques minutes',
                         temps: etape.temps
                     })) || [],
@@ -233,7 +255,7 @@ export default function RecipePage() {
 
                     substitutions: []
                 };
-
+                console.log("Nombre d'étapes trouvées:", mappedRecipe.steps.length);
                 // Essayer de récupérer une image (préférence: directUrl > stream > presigned)
                 try {
                     const imgs = await recipesService.getImages(recipeId);
@@ -252,10 +274,8 @@ export default function RecipePage() {
 
                 setRecipe(mappedRecipe);
 
-                // Si admin, charger aussi les images
-                if (isAdmin) {
-                    loadImages();
-                }
+                // Charger aussi les images pour tous (pour avoir l'URL de streaming)
+                loadImages();
 
                 // Charger les feedbacks
                 loadFeedbacks();
@@ -268,13 +288,17 @@ export default function RecipePage() {
             }
         };
 
-        if (recipeId) {
-            loadRecipe();
-            if (isAdmin) {
+            if (recipeId) {
+                loadRecipe();
                 loadImages();
             }
-        }
     }, [recipeId, isAdmin, loadImages]);
+
+    useEffect(() => {
+        if (recipe?.servings) {
+            setServings(recipe.servings);
+        }
+    }, [recipe]);
 
     // Recalculer la note moyenne quand les feedbacks changent
     useEffect(() => {
@@ -324,11 +348,18 @@ export default function RecipePage() {
         try {
             setUploadingImage(true);
             const result = await recipesService.uploadImage(recipeId, file);
+            console.log('✅ Upload réussi, résultat:', result);
+            console.log('  - directUrl:', result.directUrl);
+            console.log('  - urlStream:', result.urlStream);
+            console.log('  - urlTelechargement:', result.urlTelechargement);
+            
             await loadImages();
+            console.log('📸 Images rechargées, total:', images.length);
 
             if (!recipe.image || recipe.image.includes('placeholder')) {
                 const chosen = result.directUrl || result.urlStream || result.urlTelechargement || result.url || result.cheminFichier;
                 const imageUrl = chosen ? normalizeImageUrl(chosen) : chosen;
+                console.log('🎯 URL choisie pour image principale:', imageUrl);
                 if (imageUrl) {
                     setRecipe({ ...recipe, image: imageUrl, imageUrl: imageUrl });
 
@@ -336,6 +367,7 @@ export default function RecipePage() {
                         await recipesService.updateRecette(recipeId, {
                             imageUrl: imageUrl
                         });
+                        console.log('✅ Image principale mise à jour');
                     } catch (err) {
                         console.error('Erreur mise à jour image principale:', err);
                     }
@@ -630,20 +662,89 @@ export default function RecipePage() {
     const totalSteps = recipe?.steps?.length || 0;
     const progress = totalSteps > 0 ? (completedSteps.length / totalSteps) * 100 : 0;
 
+    // Dans src/pages/Recipe/RecipePage.jsx, avant le bloc "return ("
+
+    const handleShare = async () => {
+        const shareData = {
+            title: recipe.title || recipe.titre,
+            text: `Découvrez cette délicieuse recette sur SmartDish : ${recipe.title || recipe.titre}`,
+            url: window.location.href,
+        };
+
+        try {
+            if (navigator.share) {
+                // Utilise l'API de partage native (mobile/navigateurs modernes)
+                await navigator.share(shareData);
+            } else {
+                // Fallback : Copie le lien dans le presse-papier
+                await navigator.clipboard.writeText(shareData.url);
+                alert('Lien de la recette copié dans le presse-papier !');
+            }
+        } catch (err) {
+            console.error('Erreur lors du partage :', err);
+        }
+    };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
     return (
-        <div className="recipe-page">
-            <div className="recipe-container">
-                {/* Back Button */}
+        <div className="recipe-detail-container">
+            {/* 1. Bouton Retour */}
+            <div className="top-actions">
                 <Link to="/suggestions" className="btn btn-back">
                     <ArrowLeft className="icon-sm" />
                     Retour aux suggestions
                 </Link>
+            </div>
 
-                {/* Recipe Header */}
+            <p className="recipe-description-text">
+                <br />
+            </p>
+
+            {/* 2. Titre de la recette */}
+            <h1 className="recipe-main-title">{recipe.title || recipe.titre}</h1>
+
+            {/* 3. Ligne Feedback & Avis */}
+            <div className="recipe-feedback-line">
+                <div className="stars-container">
+                    <div className="stars-bar">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                        <Star 
+                        key={star}
+                        size={20}
+                        fill={star <= Math.round(recipe.rating || 4) ? "#ffc107" : "none"}
+                        stroke={star <= Math.round(recipe.rating || 4) ? "#ffc107" : "#ccc"}
+                        />
+                    ))}
+                    </div>
+                    <span className="rating-value">
+                        {recipe.rating > 0 ? recipe.rating.toFixed(1) : '-'}
+                    </span>
+                    <span className="rating-count">
+                        {recipe.reviews > 0 ? `(${recipe.reviews} avis)` : '(Aucun avis)'}
+                    </span>
+                </div>
+            </div>
+
+            {/* 4. Image de la recette */}
                 <div className="recipe-header-grid">
                     <div className="recipe-image-container">
                         <img
-                            src={recipe.image || recipe.imageUrl || RECIPE_PLACEHOLDER_URL}
+                            src={(images[0]?.displayUrl) || recipe.image || recipe.imageUrl || RECIPE_PLACEHOLDER_URL}
                             alt={recipe.title || recipe.titre}
                             className="recipe-main-image"
                             onError={(e) => {
@@ -651,8 +752,6 @@ export default function RecipePage() {
                                 e.target.src = RECIPE_PLACEHOLDER_URL;
                             }}
                         />
-
-                        {/* Bouton gestion images (Admin uniquement) */}
                         {isAdmin && (
                             <button
                                 className="btn-manage-images"
@@ -663,96 +762,98 @@ export default function RecipePage() {
                             </button>
                         )}
                     </div>
-
-                    <div className="recipe-header-content">
-                        <div className="recipe-tags">
-                            {recipe.tags?.map((tag, index) => (
-                                <span key={index} className="tag tag-secondary">
-                                    {tag}
-                                </span>
-                            ))}
-                        </div>
-
-                        <h1 className="recipe-main-title">{recipe.title || recipe.titre || 'Recette sans titre'}</h1>
-                        <p className="recipe-description">{recipe.description}</p>
-
-                        {/* Recipe Stats */}
-                        <div className="recipe-stats-grid">
-                            <div className="stat-box">
-                                <Clock className="stat-icon" />
-                                <div className="stat-label">Temps total</div>
-                                <div className="stat-value">{recipe.cookTime}</div>
-                            </div>
-                            <div className="stat-box">
-                                <Users className="stat-icon" />
-                                <div className="stat-label">Portions</div>
-                                <div className="stat-value">{recipe.servings}</div>
-                            </div>
-                            <div className="stat-box">
-                                <ChefHat className="stat-icon" />
-                                <div className="stat-label">Difficulté</div>
-                                <div className="stat-value">{recipe.difficulty}</div>
-                            </div>
-                            <div className="stat-box">
-                                <Flame className="stat-icon" />
-                                <div className="stat-label">Calories</div>
-                                <div className="stat-value">{recipe.calories || '-'}</div>
+                </div>
+            
+            <div className="recipe-content-columns">
+                {/* 5. Colonne Description */}
+                <section className="recipe-section description-column">
+                    <h2 className="section-title">Description</h2>
+                    <p className="recipe-description-text">
+                        {recipe.description || "Pas de description pour cette recette"}
+                    </p>
+                    
+                    <div className="recipe-core-stats">
+                        <div className="core-stat-item">
+                            <Users size={20} />
+                            <div className="stat-content">
+                                <span className="stat-value">{recipe.servings || recipe.nombrePortions} pers.</span>
                             </div>
                         </div>
-
-                        {/* Rating and Actions */}
-                        <div className="recipe-actions-row">
-                            <div className="recipe-rating">
-                                <Star className="star-icon star-filled" />
-                                <span className="rating-value">
-                                    {recipe.rating > 0 ? recipe.rating.toFixed(1) : '-'}
-                                </span>
-                                <span className="rating-count">
-                                    {recipe.reviews > 0 ? `(${recipe.reviews} avis)` : '(Aucun avis)'}
-                                </span>
+                        <div className="core-stat-item">
+                            <Clock size={20} />
+                            <div className="stat-content">
+                                <span className="stat-value">{recipe.prepTime || recipe.cookTime}</span>
                             </div>
-
-                            <div className="action-buttons">
-                                <button
-                                    className="btn btn-outline btn-sm"
-                                    onClick={() => setIsFavorite(!isFavorite)}
-                                >
-                                    <Heart className={`icon-sm ${isFavorite ? 'heart-filled' : ''}`} />
-                                    {isFavorite ? 'Retiré' : 'Favoris'}
-                                </button>
-                                <button 
-                                    className="btn btn-outline btn-sm"
-                                    onClick={() => {
-                                        const shareText = `Découvrez cette délicieuse recette: ${recipe.titre}`;
-                                        const shareUrl = window.location.href;
-                                        
-                                        if (navigator.share) {
-                                            navigator.share({
-                                                title: recipe.titre,
-                                                text: shareText,
-                                                url: shareUrl
-                                            }).catch(err => console.log('Erreur partage:', err));
-                                        } else {
-                                            // Fallback: copier dans le presse-papier
-                                            navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-                                            alert('Lien copié dans le presse-papier !');
-                                        }
-                                    }}
-                                >
-                                    <Share2 className="icon-sm" />
-                                    Partager
-                                </button>
+                        </div>
+                        <div className="core-stat-item">
+                            <ChefHat size={20} />
+                            <div className="stat-content">
+                                <span className="stat-value">{recipe.difficulty}</span>
+                            </div>
+                        </div>
+                        <div className="core-stat-item">
+                            <Flame  size={20} />
+                            <div className="stat-content">
+                                <span className="stat-value">{recipe.kcal} Kcal </span>
                             </div>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                {/* Section Commentaires et Feedbacks - Après les boutons Favoris/Partager */}
+                {/* 6. Colonne Ingrédients */}
+                <section className="recipe-section ingredients-column">
+                    <h2 className="section-title">Ingrédients</h2>
+                    <div className="ingredients-list card-style">
+                        {recipe.ingredients && recipe.ingredients.length > 0 ? (
+                            recipe.ingredients.map((ingredient, index) => (
+                                <div className="ingredient-item">
+                                    <span className="ingredient-text">
+                                        <strong>{ingredient.name || ingredient.nom}</strong>
+                                        <span className="ingredient-quantity">{ingredient.quantity || ingredient.quantite}</span>
+                                    </span>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="empty-text">Aucun ingrédient disponible</p>
+                        )}
+                    </div>
+                </section>
+            </div>
+
+
+            {/* 7. Partie Préparation */}
+            <section className="recipe-section">
+                <h2>Préparation</h2>
+                {recipe.steps && recipe.steps.length > 0 ? (
+                    <div className="steps-list">
+                        {recipe.steps.map((step, index) => (
+                            <div key={step.step || index} className="step-item">
+                                <div className="step-details">
+                                    <div className="step-header">
+                                        <h3 className="step-title">{step.title}</h3>
+                                        <span className="step-duration">
+                                            <Timer size={14} /> {step.duration}
+                                        </span>
+                                    </div>
+                                    {/* Utilisation de 'instruction' mappé plus haut */}
+                                    <p className="step-instruction">{step.instruction}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="empty-text">Aucune étape disponible pour le moment.</p>
+                )}
+            </section>
+
+
+            {/* 8. Section Commentaires */}
+            <section id="comments-section" className="recipe-section comments-area">
+            {/* Section Commentaires et Feedbacks - Après les boutons Favoris/Partager */}
                 <div className="comments-section">
                     <div className="container">
                         <div className="comments-header">
                             <h2 className="section-title">
-                                <Star className="icon-md" />
                                 Avis et commentaires
                                 <span className="reviews-count">({feedbacks.length})</span>
                             </h2>
@@ -1003,400 +1104,106 @@ export default function RecipePage() {
                         </div>
                     </div>
                 </div>
-
-                {/* Image Manager Panel (Admin uniquement) */}
-                {isAdmin && showImageManager && (
-                    <div className="image-manager-panel">
-                        <div className="image-manager-header">
-                            <h3>Gestion des images</h3>
-                            <button
-                                className="btn-close"
-                                onClick={() => setShowImageManager(false)}
-                            >
-                                ×
-                            </button>
-                        </div>
-
-                        <div className="image-manager-content">
-                            {/* Upload section */}
-                            <div className="upload-section">
-                                <label htmlFor="image-upload" className="upload-label">
-                                    <input
-                                        id="image-upload"
-                                        type="file"
-                                        accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
-                                        onChange={handleImageUpload}
-                                        disabled={uploadingImage}
-                                        style={{ display: 'none' }}
-                                    />
-                                    <div className="upload-button">
-                                        {uploadingImage ? (
-                                            <>
-                                                <div className="mini-spinner"></div>
-                                                <span>Upload en cours...</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <span className="upload-icon">📤</span>
-                                                <span>Ajouter une image</span>
-                                                <span className="upload-hint">JPG, PNG, WEBP, GIF (max 5MB)</span>
-                                            </>
-                                        )}
-                                    </div>
-                                </label>
+            </section>
+            {/* Image Manager Panel (Admin uniquement) */}
+                    {isAdmin && showImageManager && (
+                        <div className="image-manager-panel">
+                            <div className="image-manager-header">
+                                <h3>Gestion des images</h3>
+                                <button
+                                    className="btn-close"
+                                    onClick={() => setShowImageManager(false)}
+                                >
+                                    ×
+                                </button>
                             </div>
 
-                            {/* Images grid */}
-                            <div className="images-grid">
-                                {images.length > 0 ? (
-                                    images.map((img) => {
-                                        const imageUrl = img.displayUrl || img.url || img.cheminFichier;
-                                        const isMainImage = recipe.image === imageUrl || recipe.imageUrl === imageUrl;
-
-                                        return (
-                                            <div key={img.id} className={`image-item ${isMainImage ? 'is-main' : ''}`}>
-                                                <img
-                                                    src={imageUrl}
-                                                    alt={img.nom || 'Image recette'}
-                                                    className="thumbnail"
-                                                />
-
-                                                {isMainImage && (
-                                                    <div className="main-badge">
-                                                        <span>⭐ Principale</span>
-                                                    </div>
-                                                )}
-
-                                                <div className="image-actions">
-                                                    {!isMainImage && (
-                                                        <button
-                                                            className="btn-image-action btn-set-main"
-                                                            onClick={() => handleSetMainImage(imageUrl)}
-                                                            title="Définir comme image principale"
-                                                        >
-                                                            ⭐
-                                                        </button>
-                                                    )}
-                                                    <button
-                                                        className="btn-image-action btn-delete-img"
-                                                        onClick={() => handleDeleteImage(img.id)}
-                                                        title="Supprimer"
-                                                    >
-                                                        🗑️
-                                                    </button>
-                                                </div>
-                                                <div className="image-info">
-                                                    <span className="image-name">{img.nom || 'Sans nom'}</span>
-                                                    <span className="image-size">
-                                                        {img.taille ? (img.taille / 1024).toFixed(0) + ' KB' : ''}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                                ) : (
-                                    <div className="no-images">
-                                        <p>Aucune image</p>
-                                        <p className="hint">Ajoutez des images pour cette recette</p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Progress Bar */}
-                {completedSteps.length > 0 && totalSteps > 0 && (
-                    <div className="progress-card">
-                        <div className="progress-header">
-                            <span className="progress-label">Progression</span>
-                            <span className="progress-text">
-                                {completedSteps.length}/{totalSteps} étapes
-                            </span>
-                        </div>
-                        <div className="progress-bar">
-                            <div className="progress-fill" style={{ width: `${progress}%` }}></div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Tabs */}
-                <div className="recipe-tabs-section">
-                    <div className="tabs-buttons">
-                        <button
-                            className={`tab-btn ${activeTab === 'ingredients' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('ingredients')}
-                        >
-                            <Scale className="icon-sm" />
-                            Ingrédients
-                        </button>
-                        <button
-                            className={`tab-btn ${activeTab === 'steps' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('steps')}
-                        >
-                            <Timer className="icon-sm" />
-                            Étapes
-                        </button>
-                        <button
-                            className={`tab-btn ${activeTab === 'nutrition' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('nutrition')}
-                        >
-                            <Flame className="icon-sm" />
-                            Nutrition
-                        </button>
-                    </div>
-
-                    {/* Tab Content */}
-                    <div className="tabs-content-grid">
-                        <div className="tabs-main-content">
-                            {/* Ingrédients Tab */}
-                            {activeTab === 'ingredients' && (
-                                <div className="card">
-                                    <div className="card-header">
-                                        <h3 className="card-title">
-                                            Ingrédients ({recipe.servings} portions)
-                                        </h3>
-                                    </div>
-                                    <div className="card-content">
-                                        {recipe.ingredients && recipe.ingredients.length > 0 ? (
-                                            <div className="ingredients-list">
-                                                {recipe.ingredients.map((ingredient, index) => (
-                                                    <div key={index} className="ingredient-item">
-                                                        <div className="ingredient-left">
-                                                            <div className={`ingredient-dot ${ingredient.essential ? 'essential' : 'optional'}`}></div>
-                                                            <span className="ingredient-name">{ingredient.name}</span>
-                                                            {!ingredient.essential && (
-                                                                <span className="ingredient-badge">Optionnel</span>
-                                                            )}
-                                                        </div>
-                                                        <span className="ingredient-quantity">{ingredient.quantity}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <p className="empty-text">Aucun ingrédient disponible</p>
-                                        )}
-                                    </div>
+                            <div className="image-manager-content">
+                                {/* Upload section */}
+                                <div className="upload-section">
+                                    <label htmlFor="image-upload" className="upload-label">
+                                        <input
+                                            id="image-upload"
+                                            type="file"
+                                            accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                                            onChange={handleImageUpload}
+                                            disabled={uploadingImage}
+                                            style={{ display: 'none' }}
+                                        />
+                                        <div className="upload-button">
+                                            {uploadingImage ? (
+                                                <>
+                                                    <div className="mini-spinner"></div>
+                                                    <span>Upload en cours...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span className="upload-icon">📤</span>
+                                                    <span>Ajouter une image</span>
+                                                    <span className="upload-hint">JPG, PNG, WEBP, GIF (max 5MB)</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </label>
                                 </div>
-                            )}
 
-                            {/* Étapes Tab */}
-                            {activeTab === 'steps' && (
-                                <div className="steps-list">
-                                    {recipe.steps && recipe.steps.length > 0 ? (
-                                        recipe.steps.map((step) => (
-                                            <div
-                                                key={step.step}
-                                                className={`step-card ${completedSteps.includes(step.step) ? 'completed' : ''}`}
-                                            >
-                                                <div className="step-content">
-                                                    <button
-                                                        className={`step-number-btn ${completedSteps.includes(step.step) ? 'checked' : ''}`}
-                                                        onClick={() => toggleStep(step.step)}
-                                                    >
-                                                        {completedSteps.includes(step.step) ? (
-                                                            <CheckCircle2 className="icon-sm" />
-                                                        ) : (
-                                                            step.step
-                                                        )}
-                                                    </button>
+                                {/* Images grid */}
+                                <div className="images-grid">
+                                    {images.length > 0 ? (
+                                        images.map((img) => {
+                                            const imageUrl = img.displayUrl || img.url || img.cheminFichier;
+                                            const isMainImage = recipe.image === imageUrl || recipe.imageUrl === imageUrl;
 
-                                                    <div className="step-details">
-                                                        <div className="step-header">
-                                                            <h3 className="step-title">{step.title}</h3>
-                                                            <span className="step-duration">
-                                                                <Timer className="icon-xs" />
-                                                                {step.duration}
-                                                            </span>
+                                            return (
+                                                <div key={img.id} className={`image-item ${isMainImage ? 'is-main' : ''}`}>
+                                                    <img
+                                                        src={imageUrl}
+                                                        alt={img.nom || 'Image recette'}
+                                                        className="thumbnail"
+                                                    />
+
+                                                    {isMainImage && (
+                                                        <div className="main-badge">
+                                                            <span>⭐ Principale</span>
                                                         </div>
+                                                    )}
 
-                                                        <p className="step-instruction">{step.instruction}</p>
+                                                    <div className="image-actions">
+                                                        {!isMainImage && (
+                                                            <button
+                                                                className="btn-image-action btn-set-main"
+                                                                onClick={() => handleSetMainImage(imageUrl)}
+                                                                title="Définir comme image principale"
+                                                            >
+                                                                ⭐
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            className="btn-image-action btn-delete-img"
+                                                            onClick={() => handleDeleteImage(img.id)}
+                                                            title="Supprimer"
+                                                        >
+                                                            🗑️
+                                                        </button>
+                                                    </div>
+                                                    <div className="image-info">
+                                                        <span className="image-name">{img.nom || 'Sans nom'}</span>
+                                                        <span className="image-size">
+                                                            {img.taille ? (img.taille / 1024).toFixed(0) + ' KB' : ''}
+                                                        </span>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))
+                                            );
+                                        })
                                     ) : (
-                                        <div className="card">
-                                            <div className="card-content">
-                                                <p className="empty-text">Aucune étape disponible</p>
-                                            </div>
+                                        <div className="no-images">
+                                            <p>Aucune image</p>
+                                            <p className="hint">Ajoutez des images pour cette recette</p>
                                         </div>
                                     )}
                                 </div>
-                            )}
-
-                            {/* Nutrition Tab */}
-                            {activeTab === 'nutrition' && (
-                                <div className="card nutrition-card-modern">
-                                    <div className="card-header nutrition-header">
-                                        <h3 className="card-title">
-                                            <Flame className="icon-sm" />
-                                            Informations nutritionnelles
-                                        </h3>
-                                        <span className="portion-badge">Par portion</span>
-                                    </div>
-                                    <div className="card-content">
-                                        {recipe.calories > 0 ? (
-                                            <div className="nutrition-modern-grid">
-                                                <div className="nutrition-item-modern calories">
-                                                    <div className="nutrition-icon-wrapper">
-                                                        <Flame className="nutrition-icon" />
-                                                    </div>
-                                                    <div className="nutrition-details">
-                                                        <span className="nutrition-value-lg">{recipe.calories}</span>
-                                                        <span className="nutrition-label-sm">Calories (kcal)</span>
-                                                    </div>
-                                                </div>
-                                                <div className="nutrition-item-modern protein">
-                                                    <div className="nutrition-icon-wrapper">
-                                                        <Scale className="nutrition-icon" />
-                                                    </div>
-                                                    <div className="nutrition-details">
-                                                        <span className="nutrition-value-lg">-</span>
-                                                        <span className="nutrition-label-sm">Protéines (g)</span>
-                                                    </div>
-                                                </div>
-                                                <div className="nutrition-item-modern carbs">
-                                                    <div className="nutrition-icon-wrapper">
-                                                        <ChefHat className="nutrition-icon" />
-                                                    </div>
-                                                    <div className="nutrition-details">
-                                                        <span className="nutrition-value-lg">-</span>
-                                                        <span className="nutrition-label-sm">Glucides (g)</span>
-                                                    </div>
-                                                </div>
-                                                <div className="nutrition-item-modern fats">
-                                                    <div className="nutrition-icon-wrapper">
-                                                        <Heart className="nutrition-icon" />
-                                                    </div>
-                                                    <div className="nutrition-details">
-                                                        <span className="nutrition-value-lg">-</span>
-                                                        <span className="nutrition-label-sm">Lipides (g)</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="nutrition-empty">
-                                                <Flame className="empty-icon" />
-                                                <p className="empty-title">Informations nutritionnelles non disponibles</p>
-                                                <p className="empty-desc">Ces informations seront ajoutées prochainement</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Sidebar */}
-                        <div className="recipe-sidebar">
-                            <div className="card actions-card-gradient">
-                                <div className="card-header">
-                                    <h3 className="card-title-sm">
-                                        <Star className="icon-sm" />
-                                        Actions rapides
-                                    </h3>
-                                </div>
-                                <div className="card-content quick-actions">
-                                    <button className="btn btn-primary btn-full btn-animated">
-                                        <Timer className="icon-sm" />
-                                        Démarrer la cuisson
-                                    </button>
-                                    <button className="btn btn-outline btn-full btn-animated">
-                                        <ChefHat className="icon-sm" />
-                                        Ajouter au planificateur
-                                    </button>
-                                    <button className="btn btn-outline btn-full btn-animated">
-                                        <Share2 className="icon-sm" />
-                                        Partager cette recette
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="card info-card-modern">
-                                <div className="card-header">
-                                    <h3 className="card-title-sm">
-                                        <Lightbulb className="icon-sm text-accent" />
-                                        Informations
-                                    </h3>
-                                </div>
-                                <div className="card-content">
-                                    <div className="info-list">
-                                        <div className="info-item">
-                                            <ChefHat className="info-icon" />
-                                            <div className="info-text">
-                                                <span className="info-label">Difficulté</span>
-                                                <span className="info-value">{recipe.difficulty}</span>
-                                            </div>
-                                        </div>
-                                        <div className="info-item">
-                                            <Star className="info-icon" />
-                                            <div className="info-text">
-                                                <span className="info-label">Catégorie</span>
-                                                <span className="info-value">{recipe.categorie || 'Non catégorisé'}</span>
-                                            </div>
-                                        </div>
-                                        <div className="info-item">
-                                            <Clock className="info-icon" />
-                                            <div className="info-text">
-                                                <span className="info-label">Temps total</span>
-                                                <span className="info-value">{recipe.cookTime}</span>
-                                            </div>
-                                        </div>
-                                        <div className="info-item">
-                                            <Users className="info-icon" />
-                                            <div className="info-text">
-                                                <span className="info-label">Portions</span>
-                                                <span className="info-value">{recipe.servings} personnes</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="card tips-card-gradient">
-                                <div className="card-header">
-                                    <h3 className="card-title-sm">
-                                        <Lightbulb className="icon-sm" />
-                                        Astuce du chef
-                                    </h3>
-                                </div>
-                                <div className="card-content">
-                                    <p className="chef-tip-modern">
-                                        💡 Pour de meilleurs résultats, suivez l'ordre des étapes et respectez les temps de cuisson indiqués.
-                                    </p>
-                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
                 </div>
-
-                {/* Footer Info Card */}
-                <div className="recipe-footer-card">
-                    <div className="footer-card-content">
-                        <div className="footer-section">
-                            <ChefHat className="footer-icon" />
-                            <div className="footer-text">
-                                <h4 className="footer-title">Besoin d'aide ?</h4>
-                                <p className="footer-desc">Consultez nos conseils de préparation et astuces culinaires</p>
-                            </div>
-                        </div>
-                        <div className="footer-section">
-                            <Heart className="footer-icon" />
-                            <div className="footer-text">
-                                <h4 className="footer-title">Vous avez aimé ?</h4>
-                                <p className="footer-desc">Laissez un avis pour aider d'autres cuisiniers</p>
-                            </div>
-                        </div>
-                        <div className="footer-section">
-                            <Share2 className="footer-icon" />
-                            <div className="footer-text">
-                                <h4 className="footer-title">Partagez</h4>
-                                <p className="footer-desc">Faites découvrir cette recette à vos amis</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
+    )};

@@ -75,3 +75,5 @@ pids
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+# Ollama models (DO NOT COMMIT)
+ollama-data/

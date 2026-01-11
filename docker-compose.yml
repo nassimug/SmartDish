@@ -74,42 +74,53 @@ services:
   # MS-Persistance - Service de persistance
   # ========================================
   ms-persistance:
-    image: abdboutchichi/ms-persistance:latest
+    image: nassimug/ms-persistance:1.3
     container_name: smartdish-ms-persistance
     restart: unless-stopped
     depends_on:
       minio:
         condition: service_healthy
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     environment:
-      # MySQL Configuration (serveur distant)
       SPRING_DATASOURCE_URL: jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DATABASE}
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      SPRING_JPA_SHOW_SQL: "true"
+      SPRING_JPA_SHOW_SQL: "false"
+      SPRING_JPA_OPEN_IN_VIEW: "true"
       
       # MinIO Configuration
       MINIO_ENDPOINT: http://minio:9000
+      MINIO_PUBLIC_URL: ${REACT_APP_MINIO_PUBLIC_URL}
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET_RECETTES: recettes-bucket
+      MINIO_BUCKET_DOCUMENTS: documents-bucket
+      MINIO_BUCKET_REPORTS: reports-bucket
+      MINIO_BUCKET_ARTIFACTS: artifacts-bucket
+      MINIO_BUCKET_DATASETS: datasets-bucket
+      MINIO_BUCKET_BACKUPS: backups-bucket
       
-      # Logging Configuration
-      LOG_LEVEL_JDBC: DEBUG
-      LOG_LEVEL_HIBERNATE_SQL: DEBUG
-      LOG_LEVEL_HIBERNATE_BINDER: TRACE
+      # Logging Configuration (réduit pour meilleure performance)
+      LOG_LEVEL_JDBC: INFO
+      LOG_LEVEL_HIBERNATE_SQL: INFO
+      LOG_LEVEL_HIBERNATE_BINDER: INFO
       
       # Server Configuration
       SERVER_PORT: 8090
+      SERVER_PUBLIC_URL: http://localhost:8090
     ports:
       - "8090:8090"
     networks:
       - smartdish-network
     healthcheck:
-      test: ["CMD-SHELL", "timeout 5 bash -c '</dev/tcp/localhost/8090' || exit 1"]
-      interval: 10s
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8090/actuator/health"]
+      interval: 30s
       timeout: 10s
-      retries: 20
-      start_period: 120s
+      retries: 10
+      start_period: 180s
     deploy:
       resources:
         limits:
@@ -119,7 +130,7 @@ services:
   # MS-Utilisateur - Gestion des utilisateurs
   # ========================================
   ms-utilisateur:
-    image: abdboutchichi/ms-utilisateur:latest
+    image: nassimug/ms-utilisateur:1.1.0
     container_name: smartdish-ms-utilisateur
     restart: unless-stopped
     depends_on:
@@ -130,9 +141,24 @@ services:
       MS_PERSISTANCE_URL: http://ms-persistance:8090
       PERSISTANCE_SERVICE_URL: http://ms-persistance:8090
       
+      # Database Configuration (partage la même DB que ms-persistance)
+      SPRING_DATASOURCE_URL: jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DATABASE}
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "true"
+      
       # JWT Configuration
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION}
+
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_PROTOCOL: smtp
+      MAIL_SMTP_AUTH: "true"
+      MAIL_SMTP_STARTTLS_ENABLE: "true"
       
       # Actuator Configuration
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "*"
@@ -156,7 +182,7 @@ services:
   # MS-Recette - Gestion des recettes
   # ========================================
   ms-recette:
-    image: abdboutchichi/ms-recette:latest
+    image: nassimug/ms-recette:1.1.2
     container_name: smartdish-ms-recette
     restart: unless-stopped
     depends_on:
@@ -227,7 +253,10 @@ services:
     environment:
       # Ollama Configuration
       OLLAMA_BASE_URL: http://ollama:11434
-      
+      OLLAMA_MODEL: tinyllama:latest
+
+    # ✅ OBLIGATOIRE
+      PERSISTENCE_BASE_URL: http://ms-persistance:8090
       # Server Configuration
       SERVER_PORT: 8095
     ports:
@@ -245,7 +274,7 @@ services:
   # Ollama - Modèle LLM pour recommandations (optionnel)
   # ========================================
   ollama:
-    image: ollama/ollama:latest
+    image:  nassimug/ms-recommandation:latest
     container_name: smartdish-ollama
     restart: unless-stopped
     ports:
@@ -275,8 +304,6 @@ services:
       ms-utilisateur:
         condition: service_healthy
       ms-recette:
-        condition: service_healthy
-      ms-feedback:
         condition: service_healthy
       ms-recommandation:
         condition: service_healthy
