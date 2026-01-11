@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ChefHat, Mail, Lock, User, AlertCircle, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import authService from '../../services/api/auth.service';
 import './AuthPage.css';
+import logo from '../../images/logo.png';
 
 export default function RegisterPage() {
     const navigate = useNavigate();
@@ -136,8 +137,13 @@ export default function RegisterPage() {
                 {/* Logo et titre */}
                 <div className="auth-header">
                     <Link to="/" className="auth-logo">
-                        <ChefHat className="logo-icon" />
-                        <span>SmartDish</span>
+                        {/* <ChefHat className="logo-icon" />
+                        <span>SmartDish</span> */}
+                        <img 
+                            src={logo} 
+                            alt="SmartDish Logo" 
+                            className="auth-logo-image"
+                        />
                     </Link>
                     <h1 className="auth-title">Inscription</h1>
                     <p className="auth-subtitle">
