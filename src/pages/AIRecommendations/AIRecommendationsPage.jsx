@@ -6,8 +6,10 @@ import {
 } from 'lucide-react';
 import recipesService from '../../services/api/recipe.service';
 import feedbackService from '../../services/api/feedback.service';
+
 import { RECIPE_PLACEHOLDER_URL } from '../../utils/RecipePlaceholder';
 import './AIRecommendationsPage.css';
+import suggestionService from "../../services/api/suggestion.service";
 
 const DIFFICULTY_COLORS = {
     FACILE: "difficulty-easy",
@@ -39,7 +41,7 @@ export default function AIRecommendationsPage() {
                 const ingredients = JSON.parse(decodeURIComponent(ingredientsParam));
                 setSelectedIngredients(ingredients);
 
-                const recommendationResponse = await recipesService.generateRecommendations(ingredients, 3);
+                const recommendationResponse = await suggestionService.generateRecommendations(ingredients, 3);
 
                 if (recommendationResponse && recommendationResponse.recommended_recipe_ids) {
                     const recommendedIds = recommendationResponse.recommended_recipe_ids;

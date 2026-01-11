@@ -1,61 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Clock, Star, Users, Heart, Search, Trash2, ChefHat,
-    SlidersHorizontal, X, Flame
+    SlidersHorizontal, X, Flame, RefreshCw
 } from 'lucide-react';
 import { RECIPE_PLACEHOLDER_URL } from '../../utils/RecipePlaceholder';
-import './FavoritesPage.css';
 
-const FAVORITE_RECIPES = [
-    {
-        id: 1,
-        title: "Risotto crémeux aux champignons",
-        image: "/risotto-champignons-plat-cuisine.jpg",
-        cookTime: 25,
-        cookTimeDisplay: "25 min",
-        rating: 4.8,
-        reviews: 12,
-        servings: 4,
-        tags: ["Végétarien", "Italien"],
-        addedDate: "Il y a 2 jours",
-        difficulty: "MOYEN",
-        calories: 450,
-    },
-    {
-        id: 2,
-        title: "Salade de quinoa colorée",
-        image: "/salade-quinoa-coloree-healthy.jpg",
-        cookTime: 15,
-        cookTimeDisplay: "15 min",
-        rating: 4.6,
-        reviews: 8,
-        servings: 2,
-        tags: ["Healthy", "Vegan"],
-        addedDate: "Il y a 3 jours",
-        difficulty: "FACILE",
-        calories: 320,
-    },
-    {
-        id: 4,
-        title: "Saumon grillé aux herbes",
-        image: "/saumon-grill--herbes-fra-ches.jpg",
-        cookTime: 20,
-        cookTimeDisplay: "20 min",
-        rating: 4.7,
-        reviews: 15,
-        servings: 2,
-        tags: ["Protéiné", "Healthy"],
-        addedDate: "Il y a 1 semaine",
-        difficulty: "FACILE",
-        calories: 380,
-    },
-];
+import './FavoritesPage.css';
+import {useAuth} from "../../hooks/useAuth";
+import recipesService from "../../services/api/recipe.service";
 
 export default function FavoritesPage() {
+    const { user } = useAuth(); // Récupérer l'utilisateur connecté
     const [searchTerm, setSearchTerm] = useState("");
-    const [favorites, setFavorites] = useState(FAVORITE_RECIPES);
-    const [loading] = useState(false);
+    const [favorites, setFavorites] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [removingId, setRemovingId] = useState(null); // Pour l'état de suppression
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
     // Filtres avancés
@@ -66,8 +27,53 @@ export default function FavoritesPage() {
         maxCalories: 1000,
     });
 
-    const removeFavorite = (recipeId) => {
-        setFavorites(favorites.filter((recipe) => recipe.id !== recipeId));
+    // Charger les favoris depuis le backend
+    const loadFavorites = useCallback(async () => {
+        if (!user?.id) {
+            setLoading(false);
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+
+        try {
+            console.log('🔍 Chargement des favoris pour utilisateur:', user.id);
+            const data = await recipesService.getRecettesFavoritesEnriched(user.id);
+            console.log('✅ Favoris chargés:', data?.length || 0);
+            setFavorites(data || []);
+        } catch (err) {
+            console.error('❌ Erreur chargement favoris:', err);
+            setError(err.message || 'Impossible de charger vos favoris');
+        } finally {
+            setLoading(false);
+        }
+    }, [user?.id]);
+
+    // Charger les favoris au montage
+    useEffect(() => {
+        loadFavorites();
+    }, [loadFavorites]);
+
+    // Retirer un favori
+    const removeFavorite = async (recipeId) => {
+        if (!user?.id || removingId) return;
+
+        setRemovingId(recipeId);
+
+        try {
+            await recipesService.retirerFavori(recipeId, user.id);
+
+            // Mettre à jour l'état local immédiatement
+            setFavorites(prev => prev.filter(recipe => recipe.id !== recipeId));
+
+            console.log('✅ Favori retiré:', recipeId);
+        } catch (err) {
+            console.error('❌ Erreur retrait favori:', err);
+            // Optionnel: afficher une notification d'erreur
+        } finally {
+            setRemovingId(null);
+        }
     };
 
     // Réinitialiser les filtres avancés
@@ -80,23 +86,75 @@ export default function FavoritesPage() {
         });
     };
 
+    // Normaliser les données de recette pour l'affichage
+    const normalizeRecipe = (recipe) => {
+        return {
+            id: recipe.id,
+            title: recipe.titre || recipe.title || 'Sans titre',
+            image: recipe.imageUrl || recipe.image || null,
+            cookTime: recipe.tempsTotal || recipe.cookTime || 0,
+            cookTimeDisplay: recipe.tempsTotal
+                ? `${recipe.tempsTotal} min`
+                : recipe.cookTimeDisplay || 'N/A',
+            rating: recipe.note || recipe.rating || 0,
+            reviews: recipe.nombreAvis || recipe.reviews || 0,
+            servings: recipe.portions || recipe.servings || 4,
+            tags: recipe.tags || [],
+            difficulty: recipe.difficulte || recipe.difficulty || 'FACILE',
+            calories: recipe.kcal || recipe.calories || 0,
+        };
+    };
+
     // Appliquer tous les filtres
-    const filteredFavorites = favorites.filter((recipe) => {
-        const matchesSearch =
-            recipe.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            recipe.tags.some((tag) => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredFavorites = favorites
+        .map(normalizeRecipe)
+        .filter((recipe) => {
+            // Filtre de recherche
+            const matchesSearch =
+                recipe.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (recipe.tags && recipe.tags.some((tag) =>
+                    tag.toLowerCase().includes(searchTerm.toLowerCase())
+                ));
 
-        const matchesDifficulty =
-            !advancedFilters.difficulty ||
-            recipe.difficulty === advancedFilters.difficulty;
+            // Filtre de difficulté
+            const matchesDifficulty =
+                !advancedFilters.difficulty ||
+                recipe.difficulty === advancedFilters.difficulty;
 
-        const matchesMaxTime = recipe.cookTime <= advancedFilters.maxTime;
-        const matchesMinRating = recipe.rating >= advancedFilters.minRating;
-        const matchesMaxCalories = recipe.calories <= advancedFilters.maxCalories;
+            // Filtre de temps
+            const matchesMaxTime =
+                !recipe.cookTime || recipe.cookTime <= advancedFilters.maxTime;
 
-        return matchesSearch && matchesDifficulty && matchesMaxTime &&
-            matchesMinRating && matchesMaxCalories;
-    });
+            // Filtre de note
+            const matchesMinRating = recipe.rating >= advancedFilters.minRating;
+
+            // Filtre de calories
+            const matchesMaxCalories =
+                !recipe.calories || recipe.calories <= advancedFilters.maxCalories;
+
+            return matchesSearch && matchesDifficulty && matchesMaxTime &&
+                matchesMinRating && matchesMaxCalories;
+        });
+
+    // Si l'utilisateur n'est pas connecté
+    if (!user) {
+        return (
+            <div className="favorites-page">
+                <div className="favorites-container">
+                    <div className="empty-state">
+                        <Heart className="empty-icon" />
+                        <h3 className="empty-title">Connexion requise</h3>
+                        <p className="empty-description">
+                            Connectez-vous pour accéder à vos recettes favorites.
+                        </p>
+                        <Link to="/login" className="btn btn-primary">
+                            Se connecter
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="favorites-page">
@@ -108,11 +166,27 @@ export default function FavoritesPage() {
                         <span>Mes favoris</span>
                     </div>
 
-                    <h1 className="favorites-title">Vos recettes <span className="title-accent">favorites</span></h1>
+                    <h1 className="favorites-title">
+                        Vos recettes <span className="title-accent">favorites</span>
+                    </h1>
                     <p className="favorites-subtitle">
                         Retrouvez toutes vos recettes préférées sauvegardées
                     </p>
                 </div>
+
+                {/* Error State */}
+                {error && (
+                    <div className="error-state">
+                        <p className="error-message">{error}</p>
+                        <button
+                            className="btn btn-primary"
+                            onClick={loadFavorites}
+                        >
+                            <RefreshCw className="icon-sm" />
+                            Réessayer
+                        </button>
+                    </div>
+                )}
 
                 {/* Loading State */}
                 {loading ? (
@@ -150,6 +224,16 @@ export default function FavoritesPage() {
                                 >
                                     <SlidersHorizontal className="icon-sm" />
                                     Filtres
+                                </button>
+
+                                {/* Bouton refresh */}
+                                <button
+                                    className="btn-refresh"
+                                    onClick={loadFavorites}
+                                    disabled={loading}
+                                    title="Actualiser les favoris"
+                                >
+                                    <RefreshCw className={`icon-sm ${loading ? 'spinning' : ''}`} />
                                 </button>
                             </div>
 
@@ -292,6 +376,7 @@ export default function FavoritesPage() {
                             <p>
                                 {filteredFavorites.length} recette{filteredFavorites.length > 1 ? "s" : ""} favorite
                                 {filteredFavorites.length > 1 ? "s" : ""}
+                                {searchTerm && ` pour "${searchTerm}"`}
                             </p>
                         </div>
 
@@ -316,11 +401,16 @@ export default function FavoritesPage() {
                                                     {recipe.difficulty === 'FACILE' ? 'Facile' : recipe.difficulty === 'MOYEN' ? 'Moyen' : 'Difficile'}
                                                 </span>
                                                 <button
-                                                    className="btn-favorite"
+                                                    className={`btn-favorite ${removingId === recipe.id ? 'removing' : ''}`}
                                                     onClick={() => removeFavorite(recipe.id)}
+                                                    disabled={removingId === recipe.id}
                                                     title="Retirer des favoris"
                                                 >
-                                                    <Trash2 className="icon-xs" />
+                                                    {removingId === recipe.id ? (
+                                                        <div className="spinner-small"></div>
+                                                    ) : (
+                                                        <Trash2 className="icon-xs" />
+                                                    )}
                                                 </button>
                                             </div>
 
@@ -345,16 +435,25 @@ export default function FavoritesPage() {
                                             <div className="recipe-meta">
                                                 <div className="recipe-rating">
                                                     <Star className="star-icon star-filled" />
-                                                    <span className="rating-value">{recipe.rating}</span>
-                                                    <span className="rating-count">({recipe.reviews})</span>
+                                                    <span className="rating-value">
+                                                        {recipe.rating > 0 ? recipe.rating.toFixed(1) : '-'}
+                                                    </span>
+                                                    <span className="rating-count">
+                                                        ({recipe.reviews})
+                                                    </span>
                                                 </div>
-                                                <div className="recipe-calories">
-                                                    <Flame className="icon-xs" />
-                                                    <span>{recipe.calories} kcal</span>
-                                                </div>
+                                                {recipe.calories > 0 && (
+                                                    <div className="recipe-calories">
+                                                        <Flame className="icon-xs" />
+                                                        <span>{recipe.calories} kcal</span>
+                                                    </div>
+                                                )}
                                             </div>
 
-                                            <Link to={`/recette/${recipe.id}`} className="btn btn-primary btn-full">
+                                            <Link
+                                                to={`/recette/${recipe.id}`}
+                                                className="btn btn-primary btn-full"
+                                            >
                                                 Voir la recette
                                             </Link>
                                         </div>
@@ -365,17 +464,32 @@ export default function FavoritesPage() {
                             <div className="empty-state">
                                 <Heart className="empty-icon" />
                                 <h3 className="empty-title">
-                                    {searchTerm ? "Aucun favori trouvé" : "Aucune recette favorite"}
+                                    {searchTerm || advancedFilters.difficulty || advancedFilters.minRating > 0
+                                        ? "Aucun favori trouvé"
+                                        : "Aucune recette favorite"}
                                 </h3>
                                 <p className="empty-description">
-                                    {searchTerm
+                                    {searchTerm || advancedFilters.difficulty || advancedFilters.minRating > 0
                                         ? "Essayez de modifier votre recherche ou vos filtres."
                                         : "Commencez à ajouter des recettes à vos favoris pour les retrouver ici."}
                                 </p>
-                                <Link to="/suggestions" className="btn btn-primary">
-                                    <ChefHat className="icon-sm" />
-                                    Découvrir des recettes
-                                </Link>
+                                {(searchTerm || advancedFilters.difficulty || advancedFilters.minRating > 0) ? (
+                                    <button
+                                        className="btn btn-primary"
+                                        onClick={() => {
+                                            setSearchTerm('');
+                                            resetAdvancedFilters();
+                                        }}
+                                    >
+                                        <X className="icon-sm" />
+                                        Effacer les filtres
+                                    </button>
+                                ) : (
+                                    <Link to="/suggestions" className="btn btn-primary">
+                                        <ChefHat className="icon-sm" />
+                                        Découvrir des recettes
+                                    </Link>
+                                )}
                             </div>
                         )}
                     </>

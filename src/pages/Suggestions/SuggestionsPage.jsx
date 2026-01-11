@@ -12,7 +12,7 @@ import {
     Utensils,
     X
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import recipesService from '../../services/api/recipe.service';
@@ -35,7 +35,8 @@ export default function SuggestionsPage() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedFilter, setSelectedFilter] = useState("all");
-    const [favorites, setFavorites] = useState([]);
+    const [favorites, setFavorites] = useState({}); // Changé en objet { recipeId: boolean }
+    const [loadingFavorites, setLoadingFavorites] = useState({}); // État de chargement par recette
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
 
@@ -47,6 +48,24 @@ export default function SuggestionsPage() {
         maxCalories: 1000,
         sortBy: 'popular'
     });
+
+    // Charger les favoris de l'utilisateur
+    const loadUserFavorites = useCallback(async () => {
+        if (!user?.id) return;
+
+        try {
+            const userFavorites = await recipesService.getRecettesFavorites(user.id);
+            // Convertir en objet pour un accès rapide
+            const favoritesMap = {};
+            userFavorites.forEach(recipe => {
+                favoritesMap[recipe.id] = true;
+            });
+            setFavorites(favoritesMap);
+            console.log('✅ Favoris chargés:', Object.keys(favoritesMap).length);
+        } catch (err) {
+            console.error('❌ Erreur chargement favoris:', err);
+        }
+    }, [user?.id]);
 
     // Charger les recettes depuis l'API
     useEffect(() => {
@@ -120,12 +139,59 @@ export default function SuggestionsPage() {
         loadRecipes();
     }, []);
 
-    const toggleFavorite = (recipeId) => {
-        setFavorites((prev) =>
-            prev.includes(recipeId)
-                ? prev.filter((id) => id !== recipeId)
-                : [...prev, recipeId]
-        );
+    // Charger les favoris quand l'utilisateur est connecté
+    useEffect(() => {
+        loadUserFavorites();
+    }, [loadUserFavorites]);
+
+    // Toggle favori avec appel API
+    const toggleFavorite = async (recipeId) => {
+        // Vérifier si l'utilisateur est connecté
+        if (!user?.id) {
+            // Optionnel: rediriger vers la page de connexion ou afficher un message
+            alert('Connectez-vous pour ajouter des favoris');
+            return;
+        }
+
+        // Empêcher les clics multiples
+        if (loadingFavorites[recipeId]) return;
+
+        // Marquer comme en cours de chargement
+        setLoadingFavorites(prev => ({ ...prev, [recipeId]: true }));
+
+        const isFavorite = favorites[recipeId];
+
+        try {
+            // Mise à jour optimiste de l'UI
+            setFavorites(prev => ({
+                ...prev,
+                [recipeId]: !isFavorite
+            }));
+
+            // Appel API
+            const result = await recipesService.toggleFavori(recipeId, user.id);
+
+            console.log(`${result.favori ? '❤️ Ajouté aux' : '💔 Retiré des'} favoris:`, recipeId);
+
+            // Synchroniser avec la réponse du serveur
+            setFavorites(prev => ({
+                ...prev,
+                [recipeId]: result.favori
+            }));
+
+        } catch (err) {
+            console.error('❌ Erreur toggle favori:', err);
+
+            // Annuler la mise à jour optimiste en cas d'erreur
+            setFavorites(prev => ({
+                ...prev,
+                [recipeId]: isFavorite
+            }));
+
+            // Optionnel: afficher une notification d'erreur
+        } finally {
+            setLoadingFavorites(prev => ({ ...prev, [recipeId]: false }));
+        }
     };
 
     // Appliquer tous les filtres
@@ -133,11 +199,11 @@ export default function SuggestionsPage() {
         const matchesSearch =
             recipe.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
             recipe.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            recipe.ingredients.some((ing) => ing.toLowerCase().includes(searchTerm.toLowerCase()));
+            recipe.ingredients.some((ing) => ing?.toLowerCase().includes(searchTerm.toLowerCase()));
 
         const matchesFilter =
             selectedFilter === "all" ||
-            recipe.tags.some((tag) => tag.toLowerCase().includes(selectedFilter.toLowerCase())) ||
+            recipe.tags.some((tag) => tag?.toLowerCase().includes(selectedFilter.toLowerCase())) ||
             recipe.categorie?.toLowerCase().includes(selectedFilter.toLowerCase());
 
         const matchesDifficulty =
@@ -440,19 +506,32 @@ export default function SuggestionsPage() {
                                                 />
 
                                                 <div className="recipe-badges">
-                                            <span className={`difficulty-badge ${DIFFICULTY_COLORS[recipe.difficulty]}`}>
-                                                {recipe.difficulty}
-                                            </span>
+                                                    <span className={`difficulty-badge ${DIFFICULTY_COLORS[recipe.difficulty]}`}>
+                                                        {recipe.difficulty}
+                                                    </span>
                                                     {isAdmin && recipe.statut === 'EN_ATTENTE' && (
                                                         <span className="status-badge status-pending">
-                                                    EN ATTENTE
-                                                </span>
+                                                            EN ATTENTE
+                                                        </span>
                                                     )}
                                                     <button
-                                                        className="btn-favorite"
-                                                        onClick={() => toggleFavorite(recipe.id)}
+                                                        className={`btn-favorite ${favorites[recipe.id] ? 'is-favorite' : ''} ${loadingFavorites[recipe.id] ? 'is-loading' : ''}`}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            toggleFavorite(recipe.id);
+                                                        }}
+                                                        disabled={loadingFavorites[recipe.id]}
+                                                        title={favorites[recipe.id] ? 'Retirer des favoris' : 'Ajouter aux favoris'}
                                                     >
-                                                        <Heart className={`icon-sm ${favorites.includes(recipe.id) ? 'favorite-active' : ''}`} />
+                                                        {loadingFavorites[recipe.id] ? (
+                                                            <div className="spinner-tiny"></div>
+                                                        ) : (
+                                                            <Heart
+                                                                className={`icon-sm ${favorites[recipe.id] ? 'favorite-active' : ''}`}
+                                                                fill={favorites[recipe.id] ? 'currentColor' : 'none'}
+                                                            />
+                                                        )}
                                                     </button>
                                                 </div>
 
@@ -477,11 +556,11 @@ export default function SuggestionsPage() {
                                                     <div className="recipe-rating">
                                                         <Star className="star-icon star-filled" />
                                                         <span className="rating-value">
-                                                    {recipe.rating > 0 ? recipe.rating.toFixed(1) : '—'}
-                                                </span>
+                                                            {recipe.rating > 0 ? recipe.rating.toFixed(1) : '—'}
+                                                        </span>
                                                         <span className="rating-count">
-                                                    {recipe.reviews > 0 ? `(${recipe.reviews})` : '(Aucun avis)'}
-                                                </span>
+                                                            {recipe.reviews > 0 ? `(${recipe.reviews})` : '(Aucun avis)'}
+                                                        </span>
                                                     </div>
                                                     {recipe.calories > 0 && (
                                                         <div className="recipe-calories">
