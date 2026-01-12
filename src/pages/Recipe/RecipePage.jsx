@@ -30,7 +30,6 @@ export default function RecipePage() {
 
     // États pour les portions des recettes
     const [servings, setServings] = useState(0);
-
     // États
     const [recipe, setRecipe] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -831,9 +830,6 @@ export default function RecipePage() {
                                 <div className="step-details">
                                     <div className="step-header">
                                         <h3 className="step-title">{step.title}</h3>
-                                        <span className="step-duration">
-                                            <Timer size={14} /> {step.duration}
-                                        </span>
                                     </div>
                                     {/* Utilisation de 'instruction' mappé plus haut */}
                                     <p className="step-instruction">{step.instruction}</p>
