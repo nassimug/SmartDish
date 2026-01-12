@@ -130,11 +130,12 @@ export function Navigation() {
                 <div className="nav-content">
                     {/* Logo */}
                     <Link to="/" className="nav-logo">
-                         <img 
+                        <img 
                             src={logo} 
                             alt="SmartDish Logo" 
                             className="nav-logo-image"
                         />
+                        <span className="nav-logo-text">SmartDish</span>
                     </Link>
 
                     {/* Desktop Navigation */}

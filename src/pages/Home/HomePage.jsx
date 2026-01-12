@@ -241,12 +241,18 @@ export default function HomePage() {
                                         />
                                         <div className="recipe-overlay">
                                             <div className="recipe-badges">
-                                                <span className="badge-difficulty">{recipe.difficulte}</span>
+                                                <span
+                                                    className={`badge-difficulty difficulty-${recipe.difficulte?.toLowerCase()}`}
+                                                >
+                                                    {recipe.difficulte}
+                                                </span>
+
                                                 {recipe.kcal > 0 && (
                                                     <span className="badge-kcal">{recipe.kcal} kcal</span>
                                                 )}
                                             </div>
                                         </div>
+
                                     </div>
 
                                     <div className="recipe-info-modern">
