@@ -422,26 +422,57 @@
   flex-wrap: wrap;
 }
 
-.badge-difficulty,
+.badge-difficulty {
+  padding: 0.375rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+/* Facile → Vert */
+.badge-difficulty.difficulty-facile {
+  background: linear-gradient(
+    135deg,
+    var(--basilic),
+    var(--basilic-dark)
+  );
+}
+
+/* Moyen → Orange */
+.badge-difficulty.difficulty-moyen {
+  background: linear-gradient(
+    135deg,
+    var(--citron),
+    #F39C12
+  );
+}
+
+/* Difficile → Rouge */
+.badge-difficulty.difficulty-difficile {
+  background: linear-gradient(
+    135deg,
+    var(--tomate),
+    #C0392B
+  );
+}
+
+
 .badge-kcal {
   padding: 0.375rem 0.75rem;
   border-radius: 9999px;
   font-size: 0.75rem;
   font-weight: 600;
+  background: rgba(202, 19, 71, 0.9);
+  color: white;
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
 
-/* Badge marron au lieu de vert */
-.badge-difficulty {
-  background: rgba(146, 64, 14, 0.9);
-  color: white;
-}
 
-.badge-kcal {
-  background: rgba(202, 19, 71, 0.9);
-  color: white;
-}
+
 
 .recipe-info-modern {
   padding: 1.5rem;

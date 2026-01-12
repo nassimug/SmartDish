@@ -200,7 +200,6 @@ export default function FavoritesPage() {
                         <div className="filters-section">
                             <div className="search-filter-row">
                                 <div className="search-wrapper">
-                                    <Search className="search-icon" />
                                     <input
                                         type="text"
                                         placeholder="Rechercher dans mes favoris..."
